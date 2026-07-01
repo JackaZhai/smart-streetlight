@@ -18,7 +18,7 @@ Mock 设备 -> MQTT -> 后端 API/告警/控制 -> Socket.IO -> 前端大屏/管
 ## 目录结构
 
 ```text
-smart-streetlight-demo/
+smart-streetlight/
 ├── frontend/       # 前端大屏和管理界面
 ├── backend/        # REST API、Socket.IO、MQTT、告警、控制逻辑
 ├── mock-device/    # 模拟光照传感器和路灯设备
