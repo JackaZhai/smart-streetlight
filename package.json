@@ -1,0 +1,22 @@
+{
+  "name": "smart-streetlight-demo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "智慧路灯节能系统 TypeScript 全栈初稿",
+  "workspaces": [
+    "backend",
+    "frontend",
+    "mock-device"
+  ],
+  "scripts": {
+    "dev:backend": "npm --workspace backend run dev",
+    "dev:frontend": "npm --workspace frontend run dev",
+    "dev:mock": "npm --workspace mock-device run dev",
+    "build": "npm --workspaces --if-present run build",
+    "test": "npm --workspaces --if-present run test",
+    "typecheck": "npm --workspaces --if-present run typecheck"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  }
+}
