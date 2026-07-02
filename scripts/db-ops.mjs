@@ -134,11 +134,11 @@ function composeExecCommand(options, shellCommand) {
 }
 
 function backupShellCommand() {
-  return 'mysqldump --single-transaction --routines --triggers --events --no-tablespaces --default-character-set=utf8mb4 -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"';
+  return 'MYSQL_PWD="$MYSQL_PASSWORD" mysqldump --single-transaction --routines --triggers --events --no-tablespaces --default-character-set=utf8mb4 -u"$MYSQL_USER" "$MYSQL_DATABASE"';
 }
 
 function restoreShellCommand() {
-  return 'mysql --default-character-set=utf8mb4 -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"';
+  return 'MYSQL_PWD="$MYSQL_PASSWORD" mysql --default-character-set=utf8mb4 -u"$MYSQL_USER" "$MYSQL_DATABASE"';
 }
 
 function runProcess(command, options) {

@@ -24,7 +24,7 @@ describe("database ops script planning", () => {
       "mysql",
       "sh",
       "-lc",
-      'mysqldump --single-transaction --routines --triggers --events --no-tablespaces --default-character-set=utf8mb4 -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"'
+      'MYSQL_PWD="$MYSQL_PASSWORD" mysqldump --single-transaction --routines --triggers --events --no-tablespaces --default-character-set=utf8mb4 -u"$MYSQL_USER" "$MYSQL_DATABASE"'
     ]);
     assert.equal(plan.dryRun, true);
   });
@@ -48,7 +48,7 @@ describe("database ops script planning", () => {
       "mysql",
       "sh",
       "-lc",
-      'mysql --default-character-set=utf8mb4 -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"'
+      'MYSQL_PWD="$MYSQL_PASSWORD" mysql --default-character-set=utf8mb4 -u"$MYSQL_USER" "$MYSQL_DATABASE"'
     ]);
   });
 
