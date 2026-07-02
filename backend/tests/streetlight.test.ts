@@ -66,4 +66,28 @@ describe("streetlight domain", () => {
     expect(overview.stats.onlineDevices).toBe(4);
     expect(overview.latestReadings.length).toBe(4);
   });
+
+  it("generates unique reading identifiers for seeded and incoming telemetry", () => {
+    const state = createSeedState("2026-07-01T08:00:00.000Z");
+    const seededReadingIds = state.readings.map((reading) => reading.id);
+    expect(new Set(seededReadingIds).size).toBe(seededReadingIds.length);
+
+    const first = applyTelemetry(state, {
+      deviceId: "SL-001",
+      lightIntensity: 70,
+      lampStatus: "OFF",
+      online: true,
+      timestamp: "2026-07-01T08:01:00.000Z"
+    }).state;
+    const second = applyTelemetry(first, {
+      deviceId: "SL-001",
+      lightIntensity: 75,
+      lampStatus: "OFF",
+      online: true,
+      timestamp: "2026-07-01T08:02:00.000Z"
+    }).state;
+
+    const readingIds = second.readings.map((reading) => reading.id);
+    expect(new Set(readingIds).size).toBe(readingIds.length);
+  });
 });

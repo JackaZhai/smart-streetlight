@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type {
   AlarmLog,
   AppState,
@@ -312,5 +313,5 @@ function getAutomationCommand(
 }
 
 function makeId(prefix: string, seed: string): string {
-  return `${prefix}-${Buffer.from(seed).toString("hex").slice(0, 16)}`;
+  return `${prefix}-${createHash("sha1").update(seed).digest("hex").slice(0, 16)}`;
 }
