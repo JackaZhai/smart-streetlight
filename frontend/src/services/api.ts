@@ -39,6 +39,9 @@ export interface AlarmLog {
   alarmLevel: "INFO" | "WARN" | "CRITICAL";
   alarmContent: string;
   handled: boolean;
+  handledBy?: string;
+  handledAt?: string;
+  handleRemark?: string;
   createdAt: string;
 }
 
@@ -168,9 +171,14 @@ export async function saveThreshold(deviceId: string, threshold: ThresholdConfig
   });
 }
 
-export async function handleAlarm(alarmId: string): Promise<void> {
+export interface HandleAlarmPayload {
+  remark: string;
+}
+
+export async function handleAlarm(alarmId: string, payload: HandleAlarmPayload): Promise<void> {
   await request(`/api/alarms/${alarmId}/handle`, {
-    method: "PUT"
+    method: "PUT",
+    body: JSON.stringify(payload)
   });
 }
 

@@ -217,11 +217,27 @@ export function updateThreshold(
   return next;
 }
 
-export function handleAlarm(state: AppState, alarmId: string): AppState {
+export interface AlarmHandleInput {
+  handledAt?: string;
+  remark?: string;
+}
+
+export function handleAlarm(
+  state: AppState,
+  alarmId: string,
+  actor?: AuthUser,
+  input: AlarmHandleInput = {}
+): AppState {
   const next = cloneState(state);
   const alarm = next.alarms.find((item) => item.id === alarmId);
   if (alarm) {
     alarm.handled = true;
+    alarm.handledBy = actor?.username;
+    alarm.handledAt = input.handledAt ?? new Date().toISOString();
+    const remark = input.remark?.trim();
+    if (remark) {
+      alarm.handleRemark = remark;
+    }
   }
   return next;
 }

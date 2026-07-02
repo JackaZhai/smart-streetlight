@@ -20,6 +20,10 @@ export interface AgentQuestionPayload {
   question: string;
 }
 
+export interface AlarmHandlePayload {
+  remark?: string;
+}
+
 const deviceIdPattern = /^[A-Za-z0-9_-]{2,64}$/;
 
 export class ValidationError extends Error {
@@ -74,6 +78,18 @@ export function parseAgentQuestionPayload(value: unknown): AgentQuestionPayload 
   return {
     question: parseString(payload.question, "问题", 1, 500).trim()
   };
+}
+
+export function parseAlarmHandlePayload(value: unknown): AlarmHandlePayload {
+  if (value === undefined || value === null) {
+    return {};
+  }
+  const payload = asRecord(value);
+  if (payload.remark === undefined || payload.remark === null) {
+    return {};
+  }
+  const remark = parseString(payload.remark, "处理备注", 1, 300).trim();
+  return { remark };
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

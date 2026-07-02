@@ -47,6 +47,9 @@ export interface AlarmLog {
   alarmLevel: AlarmLevel;
   alarmContent: string;
   handled: boolean;
+  handledBy?: string;
+  handledAt?: string;
+  handleRemark?: string;
   createdAt: string;
 }
 

@@ -59,6 +59,7 @@ const alarmLevelFilter = ref<AlarmLevelFilter>("ALL");
 const alarmStatusFilter = ref<AlarmStatusFilter>("ALL");
 const alarmDeviceKeyword = ref("");
 const selectedAlarmId = ref("");
+const alarmHandleRemark = ref("");
 const alarmHandlePending = ref(false);
 const alarmHandleError = ref("");
 const showCreateDevice = ref(false);
@@ -90,7 +91,7 @@ const latestReading = computed<LightReading | undefined>(() =>
   overview.value?.latestReadings.find((reading) => reading.deviceId === selectedDeviceId.value)
 );
 const selectedAlarm = computed<AlarmLog | undefined>(() => {
-  const alarms = filteredAlarms.value.length > 0 ? filteredAlarms.value : overview.value?.alarms ?? [];
+  const alarms = filteredAlarms.value;
   const selected = alarms.find((alarm) => alarm.id === selectedAlarmId.value);
   if (selected) {
     return selected;
@@ -203,10 +204,11 @@ watch(
   (alarms) => {
     if (alarms.length === 0) {
       selectedAlarmId.value = "";
+      alarmHandleRemark.value = "";
       return;
     }
     if (!alarms.some((alarm) => alarm.id === selectedAlarmId.value)) {
-      selectedAlarmId.value = alarms.find((alarm) => !alarm.handled)?.id ?? alarms[0].id;
+      selectAlarm(alarms.find((alarm) => !alarm.handled)?.id ?? alarms[0].id);
     }
   },
   { immediate: true }
@@ -290,6 +292,8 @@ function openDeviceDetail(deviceId: string) {
 
 function selectAlarm(alarmId: string) {
   selectedAlarmId.value = alarmId;
+  const alarm = overview.value?.alarms.find((item) => item.id === alarmId);
+  alarmHandleRemark.value = alarm?.handleRemark ?? "";
   alarmHandleError.value = "";
 }
 
@@ -334,7 +338,9 @@ async function handleSelectedAlarm() {
   alarmHandlePending.value = true;
   alarmHandleError.value = "";
   try {
-    await handleAlarm(selectedAlarm.value.id);
+    await handleAlarm(selectedAlarm.value.id, {
+      remark: alarmHandleRemark.value.trim()
+    });
     await loadOverview();
     await loadAuditLogs();
   } catch (error) {
@@ -688,8 +694,28 @@ onMounted(async () => {
                 <dd>{{ selectedAlarm.alarmContent }}</dd>
                 <dt>处理状态</dt>
                 <dd>{{ selectedAlarm.handled ? "已处理" : "待处理" }}</dd>
+                <template v-if="selectedAlarm.handledBy">
+                  <dt>处理人</dt>
+                  <dd>{{ selectedAlarm.handledBy }}</dd>
+                </template>
+                <template v-if="selectedAlarm.handledAt">
+                  <dt>处理时间</dt>
+                  <dd>{{ formatDateTime(selectedAlarm.handledAt) }}</dd>
+                </template>
+                <template v-if="selectedAlarm.handleRemark">
+                  <dt>处理备注</dt>
+                  <dd>{{ selectedAlarm.handleRemark }}</dd>
+                </template>
               </dl>
               <p v-if="alarmHandleError" class="form-error">{{ alarmHandleError }}</p>
+              <label v-if="!selectedAlarm.handled" class="handle-remark-field">
+                处理备注
+                <textarea
+                  v-model.trim="alarmHandleRemark"
+                  maxlength="300"
+                  placeholder="填写处理过程、现场反馈或后续动作"
+                ></textarea>
+              </label>
               <div class="suggest-box">
                 <strong>建议操作</strong>
                 <ol>
@@ -703,7 +729,7 @@ onMounted(async () => {
                 <button
                   class="primary-action slim"
                   type="button"
-                  :disabled="!canOperate || selectedAlarm.handled || alarmHandlePending"
+                  :disabled="!canOperate || selectedAlarm.handled || alarmHandlePending || !alarmHandleRemark.trim()"
                   @click="handleSelectedAlarm"
                 >
                   {{ alarmHandlePending ? "处理中" : "已处理" }}

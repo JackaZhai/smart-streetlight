@@ -71,6 +71,9 @@ interface AlarmRow extends RowDataPacket {
   alarm_level: AlarmLevel;
   alarm_content: string;
   handled: 0 | 1;
+  handled_by: string | null;
+  handled_at: string | Date | null;
+  handle_remark: string | null;
   created_at: string | Date;
 }
 
@@ -220,14 +223,19 @@ export class MysqlStateStore implements StateStore {
         alarm_level VARCHAR(32) NOT NULL,
         alarm_content TEXT NOT NULL,
         handled TINYINT(1) NOT NULL DEFAULT 0,
+        handled_by VARCHAR(255) NULL,
+        handled_at DATETIME(3) NULL,
+        handle_remark TEXT NULL,
         created_at DATETIME(3) NOT NULL,
         INDEX idx_alarms_device_time (device_id, created_at),
         INDEX idx_alarms_handled (handled),
+        INDEX idx_alarms_handled_at (handled_at),
         CONSTRAINT ${this.constraint("alarm_device_fk")}
           FOREIGN KEY (device_id) REFERENCES ${this.table("devices")} (id)
           ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+    await this.ensureAlarmHandleColumns(client);
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS ${this.table("control_logs")} (
@@ -378,8 +386,8 @@ export class MysqlStateStore implements StateStore {
       await client.execute(
         `
           INSERT INTO ${this.table("alarm_logs")}
-            (id, device_id, alarm_type, alarm_level, alarm_content, handled, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+            (id, device_id, alarm_type, alarm_level, alarm_content, handled, handled_by, handled_at, handle_remark, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           alarm.id,
@@ -388,6 +396,9 @@ export class MysqlStateStore implements StateStore {
           alarm.alarmLevel,
           alarm.alarmContent,
           alarm.handled ? 1 : 0,
+          alarm.handledBy ?? null,
+          alarm.handledAt ? toMysqlDateTime(alarm.handledAt) : null,
+          alarm.handleRemark ?? null,
           toMysqlDateTime(alarm.createdAt)
         ]
       );
@@ -439,6 +450,13 @@ export class MysqlStateStore implements StateStore {
 
   private constraint(name: string): string {
     return `\`${this.tablePrefix}${name}\``;
+  }
+
+  private async ensureAlarmHandleColumns(client: DbClient): Promise<void> {
+    await addColumnIfMissing(client, this.table("alarm_logs"), "handled_by", "VARCHAR(255) NULL");
+    await addColumnIfMissing(client, this.table("alarm_logs"), "handled_at", "DATETIME(3) NULL");
+    await addColumnIfMissing(client, this.table("alarm_logs"), "handle_remark", "TEXT NULL");
+    await addIndexIfMissing(client, this.table("alarm_logs"), "idx_alarms_handled_at", "(handled_at)");
   }
 }
 
@@ -495,6 +513,9 @@ function mapAlarm(row: AlarmRow): AlarmLog {
     alarmLevel: row.alarm_level,
     alarmContent: row.alarm_content,
     handled: Boolean(row.handled),
+    ...(row.handled_by ? { handledBy: row.handled_by } : {}),
+    ...(row.handled_at ? { handledAt: fromMysqlDateTime(row.handled_at) } : {}),
+    ...(row.handle_remark ? { handleRemark: row.handle_remark } : {}),
     createdAt: fromMysqlDateTime(row.created_at)
   };
 }
@@ -545,4 +566,30 @@ function fromMysqlDateTime(value: string | Date): string {
     return value.endsWith("Z") ? value : `${value}Z`;
   }
   return `${value.replace(" ", "T")}Z`;
+}
+
+async function addColumnIfMissing(client: DbClient, tableName: string, columnName: string, definition: string): Promise<void> {
+  try {
+    await client.query(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+  } catch (error) {
+    if (isMysqlErrorCode(error, "ER_DUP_FIELDNAME")) {
+      return;
+    }
+    throw error;
+  }
+}
+
+async function addIndexIfMissing(client: DbClient, tableName: string, indexName: string, definition: string): Promise<void> {
+  try {
+    await client.query(`ALTER TABLE ${tableName} ADD INDEX ${indexName} ${definition}`);
+  } catch (error) {
+    if (isMysqlErrorCode(error, "ER_DUP_KEYNAME")) {
+      return;
+    }
+    throw error;
+  }
+}
+
+function isMysqlErrorCode(error: unknown, code: string): boolean {
+  return Boolean(error && typeof error === "object" && "code" in error && (error as { code?: unknown }).code === code);
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   parseAgentQuestionPayload,
+  parseAlarmHandlePayload,
   parseCommandPayload,
   parseCreateDevicePayload,
   parseDeviceIdParam,
@@ -37,5 +38,13 @@ describe("api validation", () => {
       question: "设备离线怎么排查？"
     });
     expect(() => parseAgentQuestionPayload({ question: "" })).toThrow(/问题/);
+  });
+
+  it("normalizes bounded alarm handling remarks", () => {
+    expect(parseAlarmHandlePayload({ remark: " 已通知现场复核 " })).toEqual({
+      remark: "已通知现场复核"
+    });
+    expect(parseAlarmHandlePayload({})).toEqual({});
+    expect(() => parseAlarmHandlePayload({ remark: "x".repeat(301) })).toThrow(/处理备注/);
   });
 });

@@ -12,7 +12,7 @@ const emit = defineEmits<{
 }>();
 
 async function markHandled(id: string) {
-  await handleAlarm(id);
+  await handleAlarm(id, { remark: "列表快捷处理" });
   emit("changed");
 }
 

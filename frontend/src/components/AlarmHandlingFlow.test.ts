@@ -9,11 +9,19 @@ describe("alarm handling page flow", () => {
     expect(appSource).toContain("alarmStatusFilter");
     expect(appSource).toContain("filteredAlarms");
     expect(appSource).toContain("selectedAlarmId");
+    expect(appSource).toContain("alarmHandleRemark");
     expect(appSource).toContain("handleSelectedAlarm");
+    expect(appSource).toContain("handleAlarm(selectedAlarm.value.id, {");
+    expect(appSource).toContain("remark: alarmHandleRemark.value.trim()");
+    expect(appSource).toContain("placeholder=\"填写处理过程、现场反馈或后续动作\"");
+    expect(appSource).toContain("handledBy");
+    expect(appSource).toContain("handleRemark");
     expect(appSource).toContain("warning: alarms.filter");
     expect(appSource).toContain("<span>中优先级</span><strong>{{ alarmStats.warning }}</strong>");
     expect(appSource).toContain("@click=\"selectAlarm(alarm.id)\"");
     expect(appSource).toContain("@click=\"handleSelectedAlarm\"");
-    expect(appSource).toContain(":disabled=\"!canOperate || selectedAlarm.handled || alarmHandlePending\"");
+    expect(appSource).toContain(
+      ":disabled=\"!canOperate || selectedAlarm.handled || alarmHandlePending || !alarmHandleRemark.trim()\""
+    );
   });
 });

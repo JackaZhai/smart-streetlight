@@ -14,6 +14,7 @@ import type { MqttBridge } from "../services/mqttBridge.js";
 import type { StateStore } from "../services/store.js";
 import {
   parseAgentQuestionPayload,
+  parseAlarmHandlePayload,
   parseCommandPayload,
   parseCreateDevicePayload,
   parseDeviceIdParam,
@@ -232,16 +233,23 @@ export function createApiRouter(options: ApiOptions): Router {
     async (req, res) => {
       const actor = getActor(res);
       const alarmId = readRouteParam(req.params.id) ?? "";
+      const payload = parseAlarmHandlePayload(req.body);
+      const nowIso = new Date().toISOString();
       const state = await options.store.update((current) =>
         appendAuditLog(
-          handleAlarm(current, alarmId),
+          handleAlarm(current, alarmId, actor, {
+            handledAt: nowIso,
+            remark: payload.remark
+          }),
           {
             actor,
             action: "alarm.handle",
             targetType: "alarm",
             targetId: alarmId,
-            result: "SUCCESS"
-          }
+            result: "SUCCESS",
+            ...(payload.remark ? { detail: payload.remark } : {})
+          },
+          nowIso
         )
       );
       await emit(options, state);

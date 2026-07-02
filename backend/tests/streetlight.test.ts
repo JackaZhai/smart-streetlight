@@ -4,6 +4,7 @@ import {
   applyTelemetry,
   buildOverview,
   createSeedState,
+  handleAlarm,
   markOfflineDevices,
   updateThreshold
 } from "../src/domain/streetlight.js";
@@ -65,6 +66,29 @@ describe("streetlight domain", () => {
     expect(overview.stats.deviceTotal).toBe(4);
     expect(overview.stats.onlineDevices).toBe(4);
     expect(overview.latestReadings.length).toBe(4);
+  });
+
+  it("records operator metadata when handling alarms", () => {
+    const state = createSeedState("2026-07-01T08:00:00.000Z");
+    const alarmId = state.alarms[0]?.id ?? "";
+
+    const handled = handleAlarm(
+      state,
+      alarmId,
+      { username: "operator", role: "operator" },
+      {
+        handledAt: "2026-07-01T08:30:00.000Z",
+        remark: "已通知现场人员检查传感器遮挡。"
+      }
+    );
+
+    expect(handled.alarms[0]).toMatchObject({
+      id: alarmId,
+      handled: true,
+      handledBy: "operator",
+      handledAt: "2026-07-01T08:30:00.000Z",
+      handleRemark: "已通知现场人员检查传感器遮挡。"
+    });
   });
 
   it("generates unique reading identifiers for seeded and incoming telemetry", () => {
