@@ -29,6 +29,7 @@ import {
   fetchLightHistory,
   fetchOverview,
   getStoredSession,
+  handleAlarm,
   logout,
   saveThreshold,
   socket,
@@ -43,6 +44,8 @@ import {
 
 type DashboardSection = "overview" | "devices" | "alarms" | "rules" | "agent";
 type DeviceView = "list" | "detail";
+type AlarmLevelFilter = "ALL" | AlarmLog["alarmLevel"];
+type AlarmStatusFilter = "ALL" | "PENDING" | "HANDLED";
 
 const overview = ref<Overview | null>(null);
 const history = ref<LightReading[]>([]);
@@ -52,6 +55,12 @@ const activeSection = ref<DashboardSection>("overview");
 const deviceView = ref<DeviceView>("list");
 const deviceSearch = ref("");
 const deviceStatusFilter = ref<"ALL" | "ONLINE" | "OFFLINE">("ALL");
+const alarmLevelFilter = ref<AlarmLevelFilter>("ALL");
+const alarmStatusFilter = ref<AlarmStatusFilter>("ALL");
+const alarmDeviceKeyword = ref("");
+const selectedAlarmId = ref("");
+const alarmHandlePending = ref(false);
+const alarmHandleError = ref("");
 const showCreateDevice = ref(false);
 const createDevicePending = ref(false);
 const createDeviceError = ref("");
@@ -81,7 +90,11 @@ const latestReading = computed<LightReading | undefined>(() =>
   overview.value?.latestReadings.find((reading) => reading.deviceId === selectedDeviceId.value)
 );
 const selectedAlarm = computed<AlarmLog | undefined>(() => {
-  const alarms = overview.value?.alarms ?? [];
+  const alarms = filteredAlarms.value.length > 0 ? filteredAlarms.value : overview.value?.alarms ?? [];
+  const selected = alarms.find((alarm) => alarm.id === selectedAlarmId.value);
+  if (selected) {
+    return selected;
+  }
   return alarms.find((alarm) => !alarm.handled) ?? alarms[0];
 });
 const canOperate = computed(() => session.value?.user.role === "admin" || session.value?.user.role === "operator");
@@ -106,7 +119,7 @@ const alarmStats = computed(() => {
   const alarms = overview.value?.alarms ?? [];
   return {
     pending: alarms.filter((alarm) => !alarm.handled).length,
-    processing: alarms.filter((alarm) => alarm.alarmLevel === "WARN" && !alarm.handled).length,
+    warning: alarms.filter((alarm) => alarm.alarmLevel === "WARN" && !alarm.handled).length,
     resolved: alarms.filter((alarm) => alarm.handled).length,
     critical: alarms.filter((alarm) => alarm.alarmLevel === "CRITICAL" && !alarm.handled).length
   };
@@ -122,6 +135,22 @@ const filteredDevices = computed(() => {
       device.name.toLowerCase().includes(keyword) ||
       device.location.toLowerCase().includes(keyword);
     return matchesStatus && matchesKeyword;
+  });
+});
+
+const filteredAlarms = computed(() => {
+  const keyword = alarmDeviceKeyword.value.trim().toLowerCase();
+  return (overview.value?.alarms ?? []).filter((alarm) => {
+    const matchesLevel = alarmLevelFilter.value === "ALL" || alarm.alarmLevel === alarmLevelFilter.value;
+    const matchesStatus =
+      alarmStatusFilter.value === "ALL" ||
+      (alarmStatusFilter.value === "PENDING" && !alarm.handled) ||
+      (alarmStatusFilter.value === "HANDLED" && alarm.handled);
+    const matchesDevice =
+      keyword.length === 0 ||
+      alarm.deviceId.toLowerCase().includes(keyword) ||
+      deviceLocationFor(alarm.deviceId).toLowerCase().includes(keyword);
+    return matchesLevel && matchesStatus && matchesDevice;
   });
 });
 
@@ -168,6 +197,20 @@ watch(showCreateDevice, (visible) => {
   createDeviceForm.location = "";
   createDeviceError.value = "";
 });
+
+watch(
+  filteredAlarms,
+  (alarms) => {
+    if (alarms.length === 0) {
+      selectedAlarmId.value = "";
+      return;
+    }
+    if (!alarms.some((alarm) => alarm.id === selectedAlarmId.value)) {
+      selectedAlarmId.value = alarms.find((alarm) => !alarm.handled)?.id ?? alarms[0].id;
+    }
+  },
+  { immediate: true }
+);
 
 async function loadOverview() {
   if (!session.value) {
@@ -245,6 +288,11 @@ function openDeviceDetail(deviceId: string) {
   deviceView.value = "detail";
 }
 
+function selectAlarm(alarmId: string) {
+  selectedAlarmId.value = alarmId;
+  alarmHandleError.value = "";
+}
+
 function closeCreateDevice() {
   if (createDevicePending.value) {
     return;
@@ -276,6 +324,23 @@ async function submitCreateDevice() {
     createDeviceError.value = error instanceof Error ? error.message : "新增设备失败";
   } finally {
     createDevicePending.value = false;
+  }
+}
+
+async function handleSelectedAlarm() {
+  if (!selectedAlarm.value || selectedAlarm.value.handled || !canOperate.value) {
+    return;
+  }
+  alarmHandlePending.value = true;
+  alarmHandleError.value = "";
+  try {
+    await handleAlarm(selectedAlarm.value.id);
+    await loadOverview();
+    await loadAuditLogs();
+  } catch (error) {
+    alarmHandleError.value = error instanceof Error ? error.message : "告警处理失败";
+  } finally {
+    alarmHandlePending.value = false;
   }
 }
 
@@ -540,17 +605,32 @@ onMounted(async () => {
 
         <section v-if="activeSection === 'alarms'" class="page-content alarm-page">
           <div class="toolbar-row">
-            <label>告警级别 <select><option>全部</option></select></label>
-            <label>处理状态 <select><option>全部</option></select></label>
-            <label>设备ID <input placeholder="请输入设备ID" /></label>
+            <label>
+              告警级别
+              <select v-model="alarmLevelFilter">
+                <option value="ALL">全部</option>
+                <option value="CRITICAL">高</option>
+                <option value="WARN">中</option>
+                <option value="INFO">低</option>
+              </select>
+            </label>
+            <label>
+              处理状态
+              <select v-model="alarmStatusFilter">
+                <option value="ALL">全部</option>
+                <option value="PENDING">待处理</option>
+                <option value="HANDLED">已处理</option>
+              </select>
+            </label>
+            <label>设备ID <input v-model="alarmDeviceKeyword" placeholder="请输入设备ID" /></label>
             <label><CalendarDays :size="14" /> 2025-05-17 至 2025-05-24</label>
-            <button class="primary-action slim" type="button">搜索</button>
+            <button class="primary-action slim" type="button" @click="alarmDeviceKeyword = alarmDeviceKeyword.trim()">搜索</button>
           </div>
           <section class="alarm-layout">
             <div class="alarm-table-area">
               <div class="alarm-stat-row">
                 <article><Bell :size="20" /><span>未处理</span><strong>{{ alarmStats.pending }}</strong></article>
-                <article><Clock3 :size="20" /><span>处理中</span><strong>{{ alarmStats.processing }}</strong></article>
+                <article><Clock3 :size="20" /><span>中优先级</span><strong>{{ alarmStats.warning }}</strong></article>
                 <article><FileText :size="20" /><span>已处理</span><strong>{{ alarmStats.resolved }}</strong></article>
                 <article><Bell :size="20" /><span>高优先级</span><strong>{{ alarmStats.critical }}</strong></article>
               </div>
@@ -569,7 +649,12 @@ onMounted(async () => {
                     </tr>
                   </thead>
                   <tbody>
-                    <tr v-for="alarm in overview.alarms" :key="alarm.id">
+                    <tr
+                      v-for="alarm in filteredAlarms"
+                      :key="alarm.id"
+                      :class="{ selected: alarm.id === selectedAlarm?.id }"
+                      @click="selectAlarm(alarm.id)"
+                    >
                       <td>{{ alarm.alarmType }}</td>
                       <td><span class="level-dot" :class="alarm.alarmLevel.toLowerCase()">{{ alarmLevelText(alarm.alarmLevel) }}</span></td>
                       <td>{{ alarm.deviceId }}</td>
@@ -577,7 +662,10 @@ onMounted(async () => {
                       <td>{{ alarm.alarmContent }}</td>
                       <td>{{ formatDateTime(alarm.createdAt) }}</td>
                       <td><span class="state-pill" :class="{ done: alarm.handled }">{{ alarm.handled ? "已处理" : "待处理" }}</span></td>
-                      <td><button class="text-button" type="button">查看</button></td>
+                      <td><button class="text-button" type="button" @click="selectAlarm(alarm.id)">查看</button></td>
+                    </tr>
+                    <tr v-if="filteredAlarms.length === 0">
+                      <td colspan="8" class="audit-empty">暂无匹配告警</td>
                     </tr>
                   </tbody>
                 </table>
@@ -586,7 +674,7 @@ onMounted(async () => {
             <aside v-if="selectedAlarm" class="panel alarm-detail-card">
               <div class="panel-title-row">
                 <h2>告警详情</h2>
-                <span class="soft-badge danger">高优先级</span>
+                <span class="soft-badge danger">{{ alarmLevelText(selectedAlarm.alarmLevel) }}优先级</span>
               </div>
               <h3>{{ selectedAlarm.alarmType }}</h3>
               <dl>
@@ -598,7 +686,10 @@ onMounted(async () => {
                 <dd>{{ formatDateTime(selectedAlarm.createdAt) }}</dd>
                 <dt>告警内容</dt>
                 <dd>{{ selectedAlarm.alarmContent }}</dd>
+                <dt>处理状态</dt>
+                <dd>{{ selectedAlarm.handled ? "已处理" : "待处理" }}</dd>
               </dl>
+              <p v-if="alarmHandleError" class="form-error">{{ alarmHandleError }}</p>
               <div class="suggest-box">
                 <strong>建议操作</strong>
                 <ol>
@@ -608,8 +699,15 @@ onMounted(async () => {
                 </ol>
               </div>
               <div class="button-row">
-                <button class="secondary-action slim" type="button">标记处理中</button>
-                <button class="primary-action slim" type="button">已处理</button>
+                <button class="secondary-action slim" type="button" @click="openDeviceDetail(selectedAlarm.deviceId)">查看设备</button>
+                <button
+                  class="primary-action slim"
+                  type="button"
+                  :disabled="!canOperate || selectedAlarm.handled || alarmHandlePending"
+                  @click="handleSelectedAlarm"
+                >
+                  {{ alarmHandlePending ? "处理中" : "已处理" }}
+                </button>
               </div>
             </aside>
           </section>
