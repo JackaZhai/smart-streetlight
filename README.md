@@ -22,11 +22,34 @@ smart-streetlight/
 ├── frontend/       # 前端大屏和管理界面
 ├── backend/        # REST API、Socket.IO、MQTT、告警、控制逻辑
 ├── mock-device/    # 模拟光照传感器和路灯设备
-├── deploy/         # EMQX Docker Compose
+├── deploy/         # 全栈 Docker Compose
 └── docs/           # 需求、架构、接口、MQTT、测试记录
 ```
 
-## 本地启动
+## 一键部署
+
+生产化交付优先使用 Docker Compose：
+
+```bash
+docker compose -f deploy/docker-compose.yml up -d --build
+```
+
+默认访问：
+
+- 前端：http://localhost:8080
+- 后端健康检查：http://localhost:4000/health
+- EMQX 控制台：http://localhost:18083
+- MySQL：127.0.0.1:3307，数据库 `smart_streetlight`
+
+停止服务：
+
+```bash
+docker compose -f deploy/docker-compose.yml down
+```
+
+详细部署和验收步骤见 [docs/部署说明.md](docs/部署说明.md)。
+
+## 开发启动
 
 1. 安装依赖：
 
@@ -40,10 +63,10 @@ npm install
 cp .env.example .env
 ```
 
-3. 启动 EMQX 和 MySQL：
+3. 启动基础设施：
 
 ```bash
-docker compose -f deploy/docker-compose.yml up -d
+docker compose -f deploy/docker-compose.yml up -d emqx mysql
 ```
 
 4. 启动后端：
