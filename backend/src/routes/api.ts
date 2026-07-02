@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type NextFunction, type Request, type Response } from "express";
 import type { Server } from "socket.io";
 import {
   applyManualCommand,
@@ -6,10 +6,17 @@ import {
   handleAlarm,
   updateThreshold
 } from "../domain/streetlight.js";
-import type { CommandName } from "../domain/types.js";
 import { answerQuestion } from "../services/agent.js";
 import type { MqttBridge } from "../services/mqttBridge.js";
 import type { StateStore } from "../services/store.js";
+import {
+  parseAgentQuestionPayload,
+  parseCommandPayload,
+  parseCreateDevicePayload,
+  parseDeviceIdParam,
+  parseThresholdPayload,
+  ValidationError
+} from "../services/validation.js";
 
 interface ApiOptions {
   store: StateStore;
@@ -31,31 +38,33 @@ export function createApiRouter(options: ApiOptions): Router {
   });
 
   router.get("/devices/:id", async (req, res) => {
+    const deviceId = parseDeviceIdParam(req.params.id);
     const state = await options.store.getState();
-    const device = state.devices.find((item) => item.id === req.params.id);
+    const device = state.devices.find((item) => item.id === deviceId);
     if (!device) {
       res.status(404).json({ message: "设备不存在" });
       return;
     }
     res.json({
       device,
-      threshold: state.thresholds.find((item) => item.deviceId === req.params.id),
-      latestReading: state.readings.filter((item) => item.deviceId === req.params.id).at(-1),
-      alarms: state.alarms.filter((item) => item.deviceId === req.params.id),
-      controlLogs: state.controlLogs.filter((item) => item.deviceId === req.params.id)
+      threshold: state.thresholds.find((item) => item.deviceId === deviceId),
+      latestReading: state.readings.filter((item) => item.deviceId === deviceId).at(-1),
+      alarms: state.alarms.filter((item) => item.deviceId === deviceId),
+      controlLogs: state.controlLogs.filter((item) => item.deviceId === deviceId)
     });
   });
 
   router.post("/devices", async (req, res) => {
+    const payload = parseCreateDevicePayload(req.body);
     const nowIso = new Date().toISOString();
     const state = await options.store.update((current) => {
-      if (current.devices.some((item) => item.id === req.body.id)) {
+      if (current.devices.some((item) => item.id === payload.id)) {
         return current;
       }
       current.devices.push({
-        id: String(req.body.id),
-        name: String(req.body.name ?? req.body.id),
-        location: String(req.body.location ?? "未绑定点位"),
+        id: payload.id,
+        name: payload.name,
+        location: payload.location,
         onlineStatus: "OFFLINE",
         lampStatus: "OFF",
         autoMode: true,
@@ -64,7 +73,7 @@ export function createApiRouter(options: ApiOptions): Router {
         updatedAt: nowIso
       });
       current.thresholds.push({
-        deviceId: String(req.body.id),
+        deviceId: payload.id,
         lowThreshold: 120,
         highThreshold: 320,
         enabled: true,
@@ -77,47 +86,45 @@ export function createApiRouter(options: ApiOptions): Router {
   });
 
   router.get("/devices/:id/latest-light", async (req, res) => {
+    const deviceId = parseDeviceIdParam(req.params.id);
     const state = await options.store.getState();
-    const latest = state.readings.filter((item) => item.deviceId === req.params.id).at(-1);
+    const latest = state.readings.filter((item) => item.deviceId === deviceId).at(-1);
     res.json(latest ?? null);
   });
 
   router.get("/devices/:id/light-history", async (req, res) => {
+    const deviceId = parseDeviceIdParam(req.params.id);
     const state = await options.store.getState();
-    res.json(state.readings.filter((item) => item.deviceId === req.params.id).slice(-80));
+    res.json(state.readings.filter((item) => item.deviceId === deviceId).slice(-80));
   });
 
   router.get("/devices/:id/threshold", async (req, res) => {
+    const deviceId = parseDeviceIdParam(req.params.id);
     const state = await options.store.getState();
-    res.json(state.thresholds.find((item) => item.deviceId === req.params.id) ?? null);
+    res.json(state.thresholds.find((item) => item.deviceId === deviceId) ?? null);
   });
 
   router.put("/devices/:id/threshold", async (req, res) => {
+    const deviceId = parseDeviceIdParam(req.params.id);
+    const payload = parseThresholdPayload(req.body);
     const state = await options.store.update((current) =>
-      updateThreshold(current, req.params.id, {
-        lowThreshold: Number(req.body.lowThreshold),
-        highThreshold: Number(req.body.highThreshold),
-        enabled: Boolean(req.body.enabled)
-      })
+      updateThreshold(current, deviceId, payload)
     );
     await emit(options, state);
-    res.json(state.thresholds.find((item) => item.deviceId === req.params.id));
+    res.json(state.thresholds.find((item) => item.deviceId === deviceId));
   });
 
   router.post("/devices/:id/commands", async (req, res) => {
-    const command = String(req.body.command) as CommandName;
-    if (command !== "TURN_ON" && command !== "TURN_OFF") {
-      res.status(400).json({ message: "command 仅支持 TURN_ON 或 TURN_OFF" });
-      return;
-    }
+    const deviceId = parseDeviceIdParam(req.params.id);
+    const { command } = parseCommandPayload(req.body);
 
-    const state = await options.store.update((current) => applyManualCommand(current, req.params.id, command));
-    options.mqttBridge.publishCommand(req.params.id, command, "manual");
+    const state = await options.store.update((current) => applyManualCommand(current, deviceId, command));
+    options.mqttBridge.publishCommand(deviceId, command, "manual");
     await emit(options, state);
     res.status(202).json({
       message: "控制指令已下发",
       command,
-      device: state.devices.find((item) => item.id === req.params.id)
+      device: state.devices.find((item) => item.id === deviceId)
     });
   });
 
@@ -133,9 +140,17 @@ export function createApiRouter(options: ApiOptions): Router {
   });
 
   router.post("/agent/chat", async (req, res) => {
-    const question = String(req.body.question ?? "");
+    const { question } = parseAgentQuestionPayload(req.body);
     const state = await options.store.getState();
     res.json(answerQuestion(question, state));
+  });
+
+  router.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {
+    if (error instanceof ValidationError) {
+      res.status(400).json({ message: error.message });
+      return;
+    }
+    next(error);
   });
 
   return router;

@@ -4,7 +4,10 @@ import express from "express";
 import { createServer } from "node:http";
 import { Server } from "socket.io";
 import { buildOverview } from "./domain/streetlight.js";
+import { createAuthRouter } from "./routes/auth.js";
 import { createApiRouter } from "./routes/api.js";
+import { createAuthServiceFromEnv } from "./services/auth.js";
+import { requireAuth, requireSocketAuth } from "./services/authMiddleware.js";
 import { createMqttBridge } from "./services/mqttBridge.js";
 import { createStateStore } from "./services/store.js";
 
@@ -21,10 +24,12 @@ const io = new Server(httpServer, {
 });
 const store = createStateStore();
 await store.init?.();
+const authService = createAuthServiceFromEnv();
 const mqttBridge = createMqttBridge({ mqttUrl, store, io });
 
 app.use(cors({ origin: corsOrigin }));
 app.use(express.json());
+io.use(requireSocketAuth(authService));
 
 app.get("/health", (_req, res) => {
   res.json({
@@ -35,6 +40,8 @@ app.get("/health", (_req, res) => {
   });
 });
 
+app.use("/api/auth", createAuthRouter(authService));
+app.use("/api", requireAuth(authService));
 app.use("/api", createApiRouter({ store, io, mqttBridge }));
 
 io.on("connection", async (socket) => {
