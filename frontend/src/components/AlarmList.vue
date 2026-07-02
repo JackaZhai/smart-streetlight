@@ -15,23 +15,28 @@ async function markHandled(id: string) {
   await handleAlarm(id);
   emit("changed");
 }
+
+function formatTime(value: string) {
+  return new Date(value).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+}
 </script>
 
 <template>
   <section class="panel alarm-panel">
-    <div class="panel-header">
+    <div class="panel-header compact">
       <div>
-        <h2>告警日志</h2>
+        <h2>告警列表</h2>
         <p>未处理优先展示</p>
       </div>
+      <button class="text-button" type="button">更多 &gt;</button>
     </div>
     <div class="alarm-list">
-      <article v-for="alarm in alarms.slice(0, 6)" :key="alarm.id" :class="{ handled: alarm.handled }">
+      <article v-for="alarm in alarms.slice(0, 5)" :key="alarm.id" :class="{ handled: alarm.handled }">
         <TriangleAlert :size="17" />
         <div>
-          <strong>{{ alarm.deviceId }} · {{ alarm.alarmLevel }}</strong>
-          <p>{{ alarm.alarmContent }}</p>
-          <span>{{ new Date(alarm.createdAt).toLocaleString("zh-CN") }}</span>
+          <strong>{{ alarm.alarmType }}</strong>
+          <p>{{ alarm.deviceId }} · {{ alarm.alarmContent }}</p>
+          <span>{{ formatTime(alarm.createdAt) }}</span>
         </div>
         <button
           v-if="!alarm.handled"
@@ -40,9 +45,10 @@ async function markHandled(id: string) {
           :disabled="!canOperate"
           @click="markHandled(alarm.id)"
         >
-          <CheckCircle2 :size="16" />
+          <CheckCircle2 :size="15" />
         </button>
       </article>
+      <div v-if="alarms.length === 0" class="audit-empty">暂无告警记录</div>
     </div>
   </section>
 </template>

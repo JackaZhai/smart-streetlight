@@ -1,10 +1,19 @@
 <script setup lang="ts">
-import { Bot, SendHorizontal } from "lucide-vue-next";
+import { Bot, SendHorizontal, UserRound } from "lucide-vue-next";
 import { ref } from "vue";
 import { askAgent } from "../services/api";
 
-const question = ref("设备离线后应该怎么排查？");
-const answer = ref("输入问题后，智能体会根据维护知识库和当前告警状态给出建议。");
+withDefaults(
+  defineProps<{
+    compact?: boolean;
+  }>(),
+  {
+    compact: false
+  }
+);
+
+const question = ref("当前设备离线如何排查？");
+const answer = ref("当前系统中有 2 台离线，今日总能耗 1.20 kWh。相比昨日用电量下降 18.8%，节能状态良好。");
 const references = ref<string[]>([]);
 const pending = ref(false);
 
@@ -24,22 +33,30 @@ async function submit() {
 </script>
 
 <template>
-  <section class="panel chat-panel">
+  <section class="panel chat-panel" :class="{ compact }">
     <div class="panel-header compact">
       <div>
-        <h2>维护智能问答</h2>
-        <p>本地规则版，可替换 MaxKB</p>
+        <h2>智能问答</h2>
+        <p>维护知识库与运行状态联动</p>
       </div>
-      <Bot :size="21" />
+      <Bot :size="20" />
     </div>
-    <div class="chat-answer">
-      {{ answer }}
+    <div class="chat-thread">
+      <div class="chat-bubble user">
+        <span>10:31</span>
+        {{ question }}
+        <UserRound :size="17" />
+      </div>
+      <div class="chat-bubble bot">
+        <Bot :size="17" />
+        <p>{{ answer }}</p>
+      </div>
       <div v-if="references.length" class="references">
         <span v-for="item in references" :key="item">{{ item }}</span>
       </div>
     </div>
     <form class="chat-form" @submit.prevent="submit">
-      <input v-model="question" placeholder="输入路灯维护问题" />
+      <input v-model="question" placeholder="请输入你的问题..." />
       <button type="submit" :disabled="pending" title="发送问题">
         <SendHorizontal :size="17" />
       </button>
