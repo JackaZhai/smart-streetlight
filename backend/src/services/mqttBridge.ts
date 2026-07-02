@@ -2,11 +2,11 @@ import mqtt, { type MqttClient } from "mqtt";
 import type { Server } from "socket.io";
 import { applyTelemetry, buildOverview, markOfflineDevices } from "../domain/streetlight.js";
 import type { CommandName, TelemetryMessage } from "../domain/types.js";
-import type { JsonStateStore } from "./store.js";
+import type { StateStore } from "./store.js";
 
 interface MqttBridgeOptions {
   mqttUrl: string;
-  store: JsonStateStore;
+  store: StateStore;
   io: Server;
 }
 

@@ -41,4 +41,12 @@ describe("StateStore contract", () => {
     process.env.STORAGE_DRIVER = "mysql";
     expect(() => createStateStore()).toThrow(/DATABASE_URL/);
   });
+
+  it("uses MySQL store when DATABASE_URL is configured", () => {
+    process.env.DATABASE_URL = "mysql://user:pass@127.0.0.1:3306/smart_streetlight";
+
+    const store = createStateStore();
+
+    expect(store.driver).toBe("mysql");
+  });
 });

@@ -9,10 +9,10 @@ import {
 import type { CommandName } from "../domain/types.js";
 import { answerQuestion } from "../services/agent.js";
 import type { MqttBridge } from "../services/mqttBridge.js";
-import type { JsonStateStore } from "../services/store.js";
+import type { StateStore } from "../services/store.js";
 
 interface ApiOptions {
-  store: JsonStateStore;
+  store: StateStore;
   io: Server;
   mqttBridge: MqttBridge;
 }
@@ -141,7 +141,7 @@ export function createApiRouter(options: ApiOptions): Router {
   return router;
 }
 
-async function emit(options: ApiOptions, state?: Awaited<ReturnType<JsonStateStore["getState"]>>): Promise<void> {
+async function emit(options: ApiOptions, state?: Awaited<ReturnType<StateStore["getState"]>>): Promise<void> {
   const current = state ?? (await options.store.getState());
   options.io.emit("state:update", buildOverview(current));
 }
