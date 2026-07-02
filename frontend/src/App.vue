@@ -25,10 +25,13 @@ import {
   type ThresholdConfig
 } from "./services/api";
 
+type DashboardSection = "overview" | "devices" | "alarms" | "agent";
+
 const overview = ref<Overview | null>(null);
 const history = ref<LightReading[]>([]);
 const auditLogs = ref<AuditLog[]>([]);
 const selectedDeviceId = ref("SL-001");
+const activeSection = ref<DashboardSection>("overview");
 const loading = ref(true);
 const errorMessage = ref("");
 const session = ref<AuthSession | null>(getStoredSession());
@@ -108,6 +111,16 @@ function handleLogout() {
   loading.value = false;
 }
 
+function handleNavigate(section: DashboardSection) {
+  activeSection.value = section;
+  requestAnimationFrame(() => {
+    document.getElementById(`dashboard-${section}`)?.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+  });
+}
+
 onMounted(async () => {
   if (session.value) {
     await startAuthenticatedSession(session.value);
@@ -120,7 +133,13 @@ onMounted(async () => {
 <template>
   <LoginPanel v-if="!session" @authenticated="startAuthenticatedSession" />
   <div v-else class="app-shell">
-    <SidebarNav :username="session.user.username" :role="session.user.role" @logout="handleLogout" />
+    <SidebarNav
+      :username="session.user.username"
+      :role="session.user.role"
+      :active-section="activeSection"
+      @navigate="handleNavigate"
+      @logout="handleLogout"
+    />
     <main class="workspace">
       <header class="topbar">
         <div>
@@ -133,7 +152,7 @@ onMounted(async () => {
         </div>
       </header>
 
-      <section v-if="overview" class="kpi-grid" aria-label="系统指标">
+      <section v-if="overview" id="dashboard-overview" class="kpi-grid scroll-target" aria-label="系统指标">
         <KpiCard label="实时光照" :value="`${overview.stats.averageLight} lux`" note="平均最新光照" tone="teal" />
         <KpiCard label="在线设备" :value="`${overview.stats.onlineDevices}/${overview.stats.deviceTotal}`" note="心跳状态" tone="green" />
         <KpiCard label="今日告警" :value="String(overview.stats.activeAlarms)" note="未处理告警" tone="amber" />
@@ -161,12 +180,20 @@ onMounted(async () => {
 
       <section v-if="overview" class="bottom-grid">
         <DeviceTable
+          id="dashboard-devices"
+          class="scroll-target"
           :devices="overview.devices"
           :selected-device-id="selectedDeviceId"
           @select-device="selectedDeviceId = $event"
         />
-        <AlarmList :alarms="overview.alarms" :can-operate="canOperate" @changed="loadOverview" />
-        <AgentChat />
+        <AlarmList
+          id="dashboard-alarms"
+          class="scroll-target"
+          :alarms="overview.alarms"
+          :can-operate="canOperate"
+          @changed="loadOverview"
+        />
+        <AgentChat id="dashboard-agent" class="scroll-target" />
       </section>
 
       <section v-if="canViewAudit" class="admin-grid">

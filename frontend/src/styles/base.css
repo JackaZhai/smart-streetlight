@@ -315,6 +315,10 @@ button:disabled {
   box-shadow: var(--shadow);
 }
 
+.scroll-target {
+  scroll-margin-top: 16px;
+}
+
 .panel-header {
   min-height: 64px;
   padding: 16px 18px;
