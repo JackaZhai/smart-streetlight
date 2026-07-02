@@ -2,12 +2,14 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { createSeedState } from "../domain/streetlight.js";
 import type { AppState } from "../domain/types.js";
+import { MysqlStateStore } from "./mysqlStore.js";
 
 export type StorageDriver = "json" | "mysql";
 export type StateUpdater = (state: AppState) => AppState | Promise<AppState>;
 
 export interface StateStore {
   readonly driver: StorageDriver;
+  init?(): Promise<void>;
   getState(): Promise<AppState>;
   update(updater: StateUpdater): Promise<AppState>;
   close?(): Promise<void>;
@@ -60,11 +62,15 @@ export class JsonStateStore implements StateStore {
 export function createStateStore(): StateStore {
   const storageDriver = process.env.STORAGE_DRIVER;
 
-  if (storageDriver === "mysql") {
+  if (storageDriver === "json") {
+    return new JsonStateStore();
+  }
+
+  if (storageDriver === "mysql" || process.env.DATABASE_URL) {
     if (!process.env.DATABASE_URL) {
       throw new Error("DATABASE_URL is required when STORAGE_DRIVER=mysql");
     }
-    throw new Error("MysqlStateStore is not implemented yet");
+    return new MysqlStateStore({ databaseUrl: process.env.DATABASE_URL });
   }
 
   return new JsonStateStore();
