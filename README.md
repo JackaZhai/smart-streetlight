@@ -1,4 +1,4 @@
-# 智慧路灯节能系统 Demo
+# 智慧路灯节能系统
 
 这是“智慧路灯节能系统”的整体代码初稿，覆盖校内软件阶段需要演示的主链路：
 
@@ -13,7 +13,7 @@ Mock 设备 -> MQTT -> 后端 API/告警/控制 -> Socket.IO -> 前端大屏/管
 - MQTT：EMQX + mqtt.js
 - 模拟设备：Node.js + mqtt.js
 - 测试：Vitest
-- 数据：本地 JSON 文件持久化，后续可替换为 MySQL/PostgreSQL
+- 数据：MySQL 8 产品化持久化，JSON 文件作为本地开发兜底
 
 ## 目录结构
 
@@ -34,25 +34,31 @@ smart-streetlight/
 npm install
 ```
 
-2. 启动 MQTT broker：
+2. 复制环境变量示例：
+
+```bash
+cp .env.example .env
+```
+
+3. 启动 EMQX 和 MySQL：
 
 ```bash
 docker compose -f deploy/docker-compose.yml up -d
 ```
 
-3. 启动后端：
+4. 启动后端：
 
 ```bash
 npm run dev:backend
 ```
 
-4. 启动前端：
+5. 启动前端：
 
 ```bash
 npm run dev:frontend
 ```
 
-5. 启动模拟设备：
+6. 启动模拟设备：
 
 ```bash
 npm run dev:mock
@@ -63,6 +69,7 @@ npm run dev:mock
 - 前端：http://localhost:5173
 - 后端健康检查：http://localhost:4000/health
 - EMQX 控制台：http://localhost:18083
+- MySQL：127.0.0.1:3307，数据库 `smart_streetlight`
 
 ## 核心演示流程
 
@@ -78,12 +85,28 @@ npm run dev:mock
 
 ```bash
 npm test
+npm run typecheck
 npm run build
+```
+
+## 存储配置
+
+默认产品化运行使用 MySQL：
+
+```env
+STORAGE_DRIVER=mysql
+DATABASE_URL=mysql://streetlight:streetlight_pass@127.0.0.1:3307/smart_streetlight
+```
+
+后端启动时会自动建表，并在空库中写入初始路灯、阈值、历史光照和示例告警。若只需要本地快速调试，可以设置：
+
+```env
+STORAGE_DRIVER=json
+STATE_FILE=./data/state.json
 ```
 
 ## 后续扩展
 
-- 将 JSON 文件存储替换为 MySQL 或 PostgreSQL。
 - 将本地规则问答替换为 MaxKB/RAG 智能体。
 - 基地阶段接入鸿蒙开发板真实光照传感器和控制外设。
 - 增加登录鉴权、角色权限和正式告警通知。
