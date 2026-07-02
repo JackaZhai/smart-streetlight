@@ -3,6 +3,7 @@ dist/
 .env
 .DS_Store
 backend/data/
+backups/
 *.log
 *.tsbuildinfo
 .worktrees/

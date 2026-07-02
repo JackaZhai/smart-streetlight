@@ -120,6 +120,17 @@ npm run typecheck
 npm run build
 ```
 
+## 数据备份与恢复
+
+生产化运行使用 MySQL 后，可以通过内置运维脚本备份和恢复数据库：
+
+```bash
+npm run db:backup
+npm run db:restore -- --input backups/mysql/smart-streetlight-YYYYMMDD-HHMMSS.sql --yes
+```
+
+恢复操作会覆盖当前数据库，脚本要求显式传入 `--yes`。上线前应将 `backups/mysql/` 同步到服务器外部存储或客户指定备份位置。
+
 ## 存储配置
 
 默认产品化运行使用 MySQL：

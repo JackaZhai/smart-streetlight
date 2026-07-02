@@ -12,8 +12,11 @@
     "dev:backend": "npm --workspace backend run dev",
     "dev:frontend": "npm --workspace frontend run dev",
     "dev:mock": "npm --workspace mock-device run dev",
+    "db:backup": "node scripts/db-backup.mjs",
+    "db:restore": "node scripts/db-restore.mjs",
     "build": "npm --workspaces --if-present run build",
-    "test": "npm --workspaces --if-present run test",
+    "test": "npm run test:ops && npm --workspaces --if-present run test",
+    "test:ops": "node --test scripts/*.test.mjs",
     "typecheck": "npm --workspaces --if-present run typecheck"
   },
   "engines": {
