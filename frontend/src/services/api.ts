@@ -60,12 +60,61 @@ export interface AgentAnswer {
   references: string[];
 }
 
+export interface AuthUser {
+  username: string;
+  role: "admin";
+}
+
+export interface AuthSession {
+  token: string;
+  user: AuthUser;
+  expiresAt: string;
+}
+
+type ApiRequestInit = RequestInit & {
+  skipAuth?: boolean;
+};
+
 const apiBase = import.meta.env.VITE_API_BASE || "";
 const socketUrl = import.meta.env.VITE_SOCKET_URL || window.location.origin.replace("5173", "4000");
+const sessionKey = "smart-streetlight-session";
+let authSession = readStoredSession();
 
 export const socket = io(socketUrl, {
+  autoConnect: false,
+  auth: authSession ? { token: authSession.token } : undefined,
   transports: ["websocket", "polling"]
 });
+
+export function getStoredSession(): AuthSession | null {
+  return authSession;
+}
+
+export async function login(username: string, password: string): Promise<AuthSession> {
+  const session = await request<AuthSession>("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ username, password }),
+    skipAuth: true
+  });
+  setAuthSession(session);
+  return session;
+}
+
+export function logout(): void {
+  authSession = null;
+  localStorage.removeItem(sessionKey);
+  socket.disconnect();
+}
+
+export function connectRealtime(): void {
+  if (!authSession) {
+    return;
+  }
+  socket.auth = { token: authSession.token };
+  if (!socket.connected) {
+    socket.connect();
+  }
+}
 
 export async function fetchOverview(): Promise<Overview> {
   return request("/api/overview");
@@ -102,17 +151,51 @@ export async function askAgent(question: string): Promise<AgentAnswer> {
   });
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function request<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
+  const { skipAuth: _skipAuth, ...requestInit } = init;
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(requestInit.headers as Record<string, string> | undefined)
+  };
+
+  if (!_skipAuth && authSession) {
+    headers.Authorization = `Bearer ${authSession.token}`;
+  }
+
   const response = await fetch(`${apiBase}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...init.headers
-    },
-    ...init
+    ...requestInit,
+    headers
   });
 
+  if (response.status === 401 && !_skipAuth) {
+    logout();
+  }
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}: ${await response.text()}`);
   }
   return response.json() as Promise<T>;
+}
+
+function setAuthSession(session: AuthSession): void {
+  authSession = session;
+  localStorage.setItem(sessionKey, JSON.stringify(session));
+  socket.auth = { token: session.token };
+}
+
+function readStoredSession(): AuthSession | null {
+  try {
+    const raw = localStorage.getItem(sessionKey);
+    if (!raw) {
+      return null;
+    }
+    const session = JSON.parse(raw) as AuthSession;
+    if (!session.token || new Date(session.expiresAt).getTime() <= Date.now()) {
+      localStorage.removeItem(sessionKey);
+      return null;
+    }
+    return session;
+  } catch {
+    localStorage.removeItem(sessionKey);
+    return null;
+  }
 }

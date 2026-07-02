@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { AlertTriangle, Bot, Gauge, Lightbulb, MapPinned } from "lucide-vue-next";
+import { AlertTriangle, Bot, Gauge, Lightbulb, LogOut, MapPinned } from "lucide-vue-next";
+
+defineProps<{
+  username: string;
+}>();
+
+const emit = defineEmits<{
+  logout: [];
+}>();
 
 const navItems = [
   { label: "总览", icon: Gauge, active: true },
@@ -21,5 +29,12 @@ const navItems = [
         <span>{{ item.label }}</span>
       </button>
     </nav>
+    <div class="sidebar-user">
+      <span>{{ username }}</span>
+      <button type="button" title="退出登录" @click="emit('logout')">
+        <LogOut :size="17" />
+        <span>退出</span>
+      </button>
+    </div>
   </aside>
 </template>

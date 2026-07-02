@@ -5,12 +5,17 @@ import AgentChat from "./components/AgentChat.vue";
 import DeviceControl from "./components/DeviceControl.vue";
 import DeviceTable from "./components/DeviceTable.vue";
 import KpiCard from "./components/KpiCard.vue";
+import LoginPanel from "./components/LoginPanel.vue";
 import SidebarNav from "./components/SidebarNav.vue";
 import TrendChart from "./components/TrendChart.vue";
 import {
+  connectRealtime,
   fetchLightHistory,
   fetchOverview,
+  getStoredSession,
+  logout,
   socket,
+  type AuthSession,
   type Device,
   type LightReading,
   type Overview,
@@ -22,6 +27,7 @@ const history = ref<LightReading[]>([]);
 const selectedDeviceId = ref("SL-001");
 const loading = ref(true);
 const errorMessage = ref("");
+const session = ref<AuthSession | null>(getStoredSession());
 
 const selectedDevice = computed<Device | undefined>(() =>
   overview.value?.devices.find((device) => device.id === selectedDeviceId.value)
@@ -34,6 +40,10 @@ const latestReading = computed<LightReading | undefined>(() =>
 );
 
 async function loadOverview() {
+  if (!session.value) {
+    loading.value = false;
+    return;
+  }
   try {
     loading.value = true;
     overview.value = await fetchOverview();
@@ -50,6 +60,10 @@ async function loadOverview() {
 }
 
 async function loadHistory() {
+  if (!session.value) {
+    history.value = [];
+    return;
+  }
   history.value = await fetchLightHistory(selectedDeviceId.value);
 }
 
@@ -57,18 +71,39 @@ watch(selectedDeviceId, () => {
   void loadHistory();
 });
 
-onMounted(async () => {
-  await loadOverview();
+async function startAuthenticatedSession(nextSession: AuthSession) {
+  session.value = nextSession;
+  socket.off("state:update");
+  connectRealtime();
   socket.on("state:update", (next: Overview) => {
     overview.value = next;
     void loadHistory();
   });
+  await loadOverview();
+}
+
+function handleLogout() {
+  logout();
+  session.value = null;
+  overview.value = null;
+  history.value = [];
+  errorMessage.value = "";
+  loading.value = false;
+}
+
+onMounted(async () => {
+  if (session.value) {
+    await startAuthenticatedSession(session.value);
+    return;
+  }
+  loading.value = false;
 });
 </script>
 
 <template>
-  <div class="app-shell">
-    <SidebarNav />
+  <LoginPanel v-if="!session" @authenticated="startAuthenticatedSession" />
+  <div v-else class="app-shell">
+    <SidebarNav :username="session.user.username" @logout="handleLogout" />
     <main class="workspace">
       <header class="topbar">
         <div>
