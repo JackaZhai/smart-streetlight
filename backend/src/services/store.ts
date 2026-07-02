@@ -3,9 +3,18 @@ import { dirname, resolve } from "node:path";
 import { createSeedState } from "../domain/streetlight.js";
 import type { AppState } from "../domain/types.js";
 
-type StateUpdater = (state: AppState) => AppState | Promise<AppState>;
+export type StorageDriver = "json" | "mysql";
+export type StateUpdater = (state: AppState) => AppState | Promise<AppState>;
 
-export class JsonStateStore {
+export interface StateStore {
+  readonly driver: StorageDriver;
+  getState(): Promise<AppState>;
+  update(updater: StateUpdater): Promise<AppState>;
+  close?(): Promise<void>;
+}
+
+export class JsonStateStore implements StateStore {
+  readonly driver = "json";
   private state: AppState | null = null;
   private writeQueue = Promise.resolve();
 
@@ -46,6 +55,19 @@ export class JsonStateStore {
     this.writeQueue = this.writeQueue.then(() => writeFile(absolutePath, payload, "utf8"));
     await this.writeQueue;
   }
+}
+
+export function createStateStore(): StateStore {
+  const storageDriver = process.env.STORAGE_DRIVER;
+
+  if (storageDriver === "mysql") {
+    if (!process.env.DATABASE_URL) {
+      throw new Error("DATABASE_URL is required when STORAGE_DRIVER=mysql");
+    }
+    throw new Error("MysqlStateStore is not implemented yet");
+  }
+
+  return new JsonStateStore();
 }
 
 function clone(state: AppState): AppState {
