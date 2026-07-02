@@ -41,6 +41,14 @@ docker compose -f deploy/docker-compose.yml up -d --build
 - EMQX 控制台：http://localhost:18083
 - MySQL：127.0.0.1:3307，数据库 `smart_streetlight`
 
+默认登录账号用于演示交付：
+
+```text
+admin / admin123
+```
+
+正式部署前应通过 `ADMIN_USERNAME`、`ADMIN_PASSWORD` 和 `JWT_SECRET` 修改默认认证配置。
+
 停止服务：
 
 ```bash
@@ -128,8 +136,21 @@ STORAGE_DRIVER=json
 STATE_FILE=./data/state.json
 ```
 
+## 登录配置
+
+后端默认开启单管理员登录：
+
+```env
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=admin123
+JWT_SECRET=change-this-secret-before-delivery
+AUTH_TOKEN_TTL_SECONDS=86400
+```
+
+除 `/health` 和 `/api/auth/login` 外，所有 `/api` 接口和 Socket.IO 连接都需要登录 token。
+
 ## 后续扩展
 
 - 将本地规则问答替换为 MaxKB/RAG 智能体。
 - 基地阶段接入鸿蒙开发板真实光照传感器和控制外设。
-- 增加登录鉴权、角色权限和正式告警通知。
+- 增加多用户角色权限和正式告警通知。
