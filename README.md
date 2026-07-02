@@ -36,7 +36,7 @@ docker compose -f deploy/docker-compose.yml up -d --build
 
 默认访问：
 
-- 前端：http://localhost:8080
+- 前端：http://localhost:8088
 - 后端健康检查：http://localhost:4000/health
 - EMQX 控制台：http://localhost:18083
 - MySQL：127.0.0.1:3307，数据库 `smart_streetlight`
