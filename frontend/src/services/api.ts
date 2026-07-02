@@ -3,6 +3,7 @@ import { io } from "socket.io-client";
 export type LampStatus = "ON" | "OFF";
 export type OnlineStatus = "ONLINE" | "OFFLINE";
 export type CommandName = "TURN_ON" | "TURN_OFF";
+export type UserRole = "admin" | "operator" | "viewer";
 
 export interface Device {
   id: string;
@@ -62,13 +63,25 @@ export interface AgentAnswer {
 
 export interface AuthUser {
   username: string;
-  role: "admin";
+  role: UserRole;
 }
 
 export interface AuthSession {
   token: string;
   user: AuthUser;
   expiresAt: string;
+}
+
+export interface AuditLog {
+  id: string;
+  actorUsername: string;
+  actorRole: UserRole;
+  action: string;
+  targetType: string;
+  targetId: string;
+  result: "SUCCESS" | "DENIED";
+  detail?: string;
+  createdAt: string;
 }
 
 type ApiRequestInit = RequestInit & {
@@ -124,6 +137,10 @@ export async function fetchLightHistory(deviceId: string): Promise<LightReading[
   return request(`/api/devices/${deviceId}/light-history`);
 }
 
+export async function fetchAuditLogs(): Promise<AuditLog[]> {
+  return request("/api/audit-logs");
+}
+
 export async function sendCommand(deviceId: string, command: CommandName): Promise<void> {
   await request(`/api/devices/${deviceId}/commands`, {
     method: "POST",
@@ -171,7 +188,15 @@ async function request<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
     logout();
   }
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+    const text = await response.text();
+    let message = text;
+    try {
+      const parsed = JSON.parse(text) as { message?: string };
+      message = parsed.message ?? text;
+    } catch {
+      message = text;
+    }
+    throw new Error(`HTTP ${response.status}: ${message}`);
   }
   return response.json() as Promise<T>;
 }

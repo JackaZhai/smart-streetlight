@@ -4,6 +4,7 @@ import { handleAlarm, type AlarmLog } from "../services/api";
 
 defineProps<{
   alarms: AlarmLog[];
+  canOperate: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -32,7 +33,13 @@ async function markHandled(id: string) {
           <p>{{ alarm.alarmContent }}</p>
           <span>{{ new Date(alarm.createdAt).toLocaleString("zh-CN") }}</span>
         </div>
-        <button v-if="!alarm.handled" type="button" title="标记已处理" @click="markHandled(alarm.id)">
+        <button
+          v-if="!alarm.handled"
+          type="button"
+          title="标记已处理"
+          :disabled="!canOperate"
+          @click="markHandled(alarm.id)"
+        >
           <CheckCircle2 :size="16" />
         </button>
       </article>

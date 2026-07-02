@@ -114,6 +114,13 @@ button:disabled {
   font-weight: 800;
 }
 
+.sidebar-user small {
+  padding: 0 12px;
+  color: #7f93a0;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .sidebar-user button {
   border: 1px solid #2f404a;
   background: #15232b;
@@ -293,6 +300,12 @@ button:disabled {
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(310px, 0.8fr) minmax(300px, 0.8fr);
   gap: 14px;
+}
+
+.admin-grid {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .panel {
@@ -596,6 +609,73 @@ tbody tr:hover {
   border-color: var(--border);
 }
 
+.audit-list {
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+  max-height: 322px;
+  overflow: auto;
+}
+
+.audit-list article {
+  min-height: 58px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #f8fafc;
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) 70px;
+  gap: 12px;
+  align-items: center;
+}
+
+.audit-list article.denied {
+  border-color: #f4d8a9;
+  background: #fffaf0;
+}
+
+.audit-list strong,
+.audit-list span {
+  display: block;
+}
+
+.audit-list strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.audit-list span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.audit-list b {
+  justify-self: end;
+  min-width: 48px;
+  min-height: 26px;
+  padding: 0 8px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--green-soft);
+  color: var(--green);
+  font-size: 12px;
+}
+
+.audit-list article.denied b {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.audit-empty {
+  min-height: 58px;
+  padding: 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .chat-panel {
   padding-bottom: 12px;
 }
@@ -669,7 +749,8 @@ tbody tr:hover {
   }
 
   .content-grid,
-  .bottom-grid {
+  .bottom-grid,
+  .admin-grid {
     grid-template-columns: 1fr;
   }
 
@@ -734,5 +815,13 @@ tbody tr:hover {
   .switch-line,
   .save-action {
     grid-column: auto;
+  }
+
+  .audit-list article {
+    grid-template-columns: 1fr;
+  }
+
+  .audit-list b {
+    justify-self: start;
   }
 }

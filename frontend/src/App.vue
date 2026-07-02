@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import AlarmList from "./components/AlarmList.vue";
 import AgentChat from "./components/AgentChat.vue";
+import AuditLogPanel from "./components/AuditLogPanel.vue";
 import DeviceControl from "./components/DeviceControl.vue";
 import DeviceTable from "./components/DeviceTable.vue";
 import KpiCard from "./components/KpiCard.vue";
@@ -10,11 +11,13 @@ import SidebarNav from "./components/SidebarNav.vue";
 import TrendChart from "./components/TrendChart.vue";
 import {
   connectRealtime,
+  fetchAuditLogs,
   fetchLightHistory,
   fetchOverview,
   getStoredSession,
   logout,
   socket,
+  type AuditLog,
   type AuthSession,
   type Device,
   type LightReading,
@@ -24,6 +27,7 @@ import {
 
 const overview = ref<Overview | null>(null);
 const history = ref<LightReading[]>([]);
+const auditLogs = ref<AuditLog[]>([]);
 const selectedDeviceId = ref("SL-001");
 const loading = ref(true);
 const errorMessage = ref("");
@@ -38,6 +42,8 @@ const selectedThreshold = computed<ThresholdConfig | undefined>(() =>
 const latestReading = computed<LightReading | undefined>(() =>
   overview.value?.latestReadings.find((reading) => reading.deviceId === selectedDeviceId.value)
 );
+const canOperate = computed(() => session.value?.user.role === "admin" || session.value?.user.role === "operator");
+const canViewAudit = computed(() => session.value?.user.role === "admin");
 
 async function loadOverview() {
   if (!session.value) {
@@ -51,12 +57,21 @@ async function loadOverview() {
       selectedDeviceId.value = overview.value.devices[0]?.id ?? "SL-001";
     }
     await loadHistory();
+    await loadAuditLogs();
     errorMessage.value = "";
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : "加载失败";
   } finally {
     loading.value = false;
   }
+}
+
+async function loadAuditLogs() {
+  if (!canViewAudit.value) {
+    auditLogs.value = [];
+    return;
+  }
+  auditLogs.value = await fetchAuditLogs();
 }
 
 async function loadHistory() {
@@ -78,6 +93,7 @@ async function startAuthenticatedSession(nextSession: AuthSession) {
   socket.on("state:update", (next: Overview) => {
     overview.value = next;
     void loadHistory();
+    void loadAuditLogs();
   });
   await loadOverview();
 }
@@ -87,6 +103,7 @@ function handleLogout() {
   session.value = null;
   overview.value = null;
   history.value = [];
+  auditLogs.value = [];
   errorMessage.value = "";
   loading.value = false;
 }
@@ -103,7 +120,7 @@ onMounted(async () => {
 <template>
   <LoginPanel v-if="!session" @authenticated="startAuthenticatedSession" />
   <div v-else class="app-shell">
-    <SidebarNav :username="session.user.username" @logout="handleLogout" />
+    <SidebarNav :username="session.user.username" :role="session.user.role" @logout="handleLogout" />
     <main class="workspace">
       <header class="topbar">
         <div>
@@ -137,6 +154,7 @@ onMounted(async () => {
           :device="selectedDevice"
           :threshold="selectedThreshold"
           :latest-reading="latestReading"
+          :can-operate="canOperate"
           @changed="loadOverview"
         />
       </section>
@@ -147,8 +165,12 @@ onMounted(async () => {
           :selected-device-id="selectedDeviceId"
           @select-device="selectedDeviceId = $event"
         />
-        <AlarmList :alarms="overview.alarms" @changed="loadOverview" />
+        <AlarmList :alarms="overview.alarms" :can-operate="canOperate" @changed="loadOverview" />
         <AgentChat />
+      </section>
+
+      <section v-if="canViewAudit" class="admin-grid">
+        <AuditLogPanel :logs="auditLogs" />
       </section>
 
       <div v-if="loading" class="empty-state">正在加载智慧路灯运行数据...</div>

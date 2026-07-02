@@ -1,11 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-
-export type UserRole = "admin";
-
-export interface AuthUser {
-  username: string;
-  role: UserRole;
-}
+import type { AuthUser, UserRole } from "../domain/types.js";
 
 export interface AuthSession {
   token: string;
@@ -18,6 +12,11 @@ export interface AuthConfig {
   adminPassword: string;
   jwtSecret: string;
   tokenTtlSeconds: number;
+  users?: AuthCredential[];
+}
+
+export interface AuthCredential extends AuthUser {
+  password: string;
 }
 
 export interface AuthService {
@@ -30,20 +29,21 @@ interface TokenPayload extends AuthUser {
 }
 
 const header = { alg: "HS256", typ: "JWT" };
+const roles: UserRole[] = ["admin", "operator", "viewer"];
 
 export function createAuthService(config: AuthConfig): AuthService {
+  const credentials = buildCredentials(config);
+
   return {
     async login(username, password) {
       const normalizedUsername = username.trim();
-      if (
-        normalizedUsername !== config.adminUsername ||
-        !safeEqual(password, config.adminPassword)
-      ) {
+      const credential = credentials.find((item) => item.username === normalizedUsername);
+      if (!credential || !safeEqual(password, credential.password)) {
         return null;
       }
 
       const expiresAtMs = Date.now() + config.tokenTtlSeconds * 1000;
-      const user: AuthUser = { username: config.adminUsername, role: "admin" };
+      const user: AuthUser = { username: credential.username, role: credential.role };
       return {
         token: signToken({ ...user, exp: Math.floor(expiresAtMs / 1000) }, config.jwtSecret),
         user,
@@ -69,7 +69,53 @@ export function createAuthServiceFromEnv(env = process.env): AuthService {
     adminUsername: env.ADMIN_USERNAME ?? "admin",
     adminPassword: env.ADMIN_PASSWORD ?? "admin123",
     jwtSecret: env.JWT_SECRET ?? "dev-only-change-me",
-    tokenTtlSeconds: Number(env.AUTH_TOKEN_TTL_SECONDS ?? 86_400)
+    tokenTtlSeconds: Number(env.AUTH_TOKEN_TTL_SECONDS ?? 86_400),
+    users: parseAuthUsers(env.AUTH_USERS_JSON)
+  });
+}
+
+export function parseAuthUsers(raw: string | undefined): AuthCredential[] {
+  if (!raw?.trim()) {
+    return [];
+  }
+
+  const parsed = JSON.parse(raw) as Array<Partial<AuthCredential>>;
+  if (!Array.isArray(parsed)) {
+    throw new Error("AUTH_USERS_JSON must be a JSON array");
+  }
+
+  return parsed.map((item, index) => {
+    if (
+      typeof item.username !== "string" ||
+      typeof item.password !== "string" ||
+      !roles.includes(item.role as UserRole)
+    ) {
+      throw new Error(`AUTH_USERS_JSON[${index}] requires username, password and role`);
+    }
+    return {
+      username: item.username.trim(),
+      password: item.password,
+      role: item.role as UserRole
+    };
+  });
+}
+
+function buildCredentials(config: AuthConfig): AuthCredential[] {
+  const credentials = [
+    {
+      username: config.adminUsername,
+      password: config.adminPassword,
+      role: "admin" as const
+    },
+    ...(config.users ?? [])
+  ];
+  const seen = new Set<string>();
+  return credentials.filter((credential) => {
+    if (!credential.username || seen.has(credential.username)) {
+      return false;
+    }
+    seen.add(credential.username);
+    return true;
   });
 }
 
@@ -93,7 +139,7 @@ function verifyToken(token: string, secret: string): TokenPayload | null {
 
   try {
     const payload = JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8")) as TokenPayload;
-    if (payload.role !== "admin" || typeof payload.username !== "string" || typeof payload.exp !== "number") {
+    if (!roles.includes(payload.role) || typeof payload.username !== "string" || typeof payload.exp !== "number") {
       return null;
     }
     if (payload.exp <= Math.floor(Date.now() / 1000)) {

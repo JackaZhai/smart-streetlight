@@ -7,6 +7,7 @@ const props = defineProps<{
   device: Device;
   threshold: ThresholdConfig;
   latestReading?: LightReading;
+  canOperate: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -67,10 +68,10 @@ async function persistThreshold() {
     </div>
 
     <div class="button-row">
-      <button class="primary-action" type="button" @click="control('TURN_ON')">
+      <button class="primary-action" type="button" :disabled="!canOperate" @click="control('TURN_ON')">
         <Power :size="17" /> 开灯
       </button>
-      <button class="secondary-action" type="button" @click="control('TURN_OFF')">
+      <button class="secondary-action" type="button" :disabled="!canOperate" @click="control('TURN_OFF')">
         <Power :size="17" /> 关灯
       </button>
     </div>
@@ -78,17 +79,17 @@ async function persistThreshold() {
     <form class="threshold-form" @submit.prevent="persistThreshold">
       <label>
         开灯阈值
-        <input v-model.number="form.lowThreshold" type="number" min="0" />
+        <input v-model.number="form.lowThreshold" type="number" min="0" :disabled="!canOperate" />
       </label>
       <label>
         关灯阈值
-        <input v-model.number="form.highThreshold" type="number" min="0" />
+        <input v-model.number="form.highThreshold" type="number" min="0" :disabled="!canOperate" />
       </label>
       <label class="switch-line">
-        <input v-model="form.enabled" type="checkbox" />
+        <input v-model="form.enabled" type="checkbox" :disabled="!canOperate" />
         自动联动
       </label>
-      <button class="save-action" type="submit"><Save :size="16" /> 保存阈值</button>
+      <button class="save-action" type="submit" :disabled="!canOperate"><Save :size="16" /> 保存阈值</button>
     </form>
   </section>
 </template>

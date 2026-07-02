@@ -41,13 +41,13 @@ docker compose -f deploy/docker-compose.yml up -d --build
 - EMQX 控制台：http://localhost:18083
 - MySQL：127.0.0.1:3307，数据库 `smart_streetlight`
 
-默认登录账号用于演示交付：
+默认管理员账号用于演示交付：
 
 ```text
 admin / admin123
 ```
 
-正式部署前应通过 `ADMIN_USERNAME`、`ADMIN_PASSWORD` 和 `JWT_SECRET` 修改默认认证配置。
+正式部署前应通过 `ADMIN_USERNAME`、`ADMIN_PASSWORD`、`JWT_SECRET` 和 `AUTH_USERS_JSON` 修改认证配置。
 
 停止服务：
 
@@ -138,19 +138,28 @@ STATE_FILE=./data/state.json
 
 ## 登录配置
 
-后端默认开启单管理员登录：
+后端默认开启管理员登录，并支持通过 JSON 配置运维员和只读账号：
 
 ```env
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=admin123
 JWT_SECRET=change-this-secret-before-delivery
 AUTH_TOKEN_TTL_SECONDS=86400
+AUTH_USERS_JSON=[{"username":"operator","password":"operator123","role":"operator"},{"username":"viewer","password":"viewer123","role":"viewer"}]
 ```
 
 除 `/health` 和 `/api/auth/login` 外，所有 `/api` 接口和 Socket.IO 连接都需要登录 token。
+
+角色权限：
+
+- `admin`：全部读写权限，可新增设备、查看审计日志。
+- `operator`：可执行阈值调整、开关灯、告警处理等运维操作。
+- `viewer`：只读访问总览、设备、告警和智能问答。
+
+关键写操作和被拒绝的越权操作会写入审计日志，管理员可在前端审计面板或 `/api/audit-logs` 查看最近记录。
 
 ## 后续扩展
 
 - 将本地规则问答替换为 MaxKB/RAG 智能体。
 - 基地阶段接入鸿蒙开发板真实光照传感器和控制外设。
-- 增加多用户角色权限和正式告警通知。
+- 增加告警通知、备份恢复和 CI/CD 发布流水线。

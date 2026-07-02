@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { AlertTriangle, Bot, Gauge, Lightbulb, LogOut, MapPinned } from "lucide-vue-next";
+import type { UserRole } from "../services/api";
 
 defineProps<{
   username: string;
+  role: UserRole;
 }>();
 
 const emit = defineEmits<{
@@ -31,6 +33,7 @@ const navItems = [
     </nav>
     <div class="sidebar-user">
       <span>{{ username }}</span>
+      <small>{{ role }}</small>
       <button type="button" title="退出登录" @click="emit('logout')">
         <LogOut :size="17" />
         <span>退出</span>

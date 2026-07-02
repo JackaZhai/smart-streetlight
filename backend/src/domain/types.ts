@@ -4,6 +4,13 @@ export type CommandName = "TURN_ON" | "TURN_OFF";
 export type CommandSource = "manual" | "auto";
 export type AlarmType = "DEVICE_OFFLINE" | "CONTROL_TIMEOUT" | "SENSOR_ANOMALY";
 export type AlarmLevel = "INFO" | "WARN" | "CRITICAL";
+export type UserRole = "admin" | "operator" | "viewer";
+export type AuditResult = "SUCCESS" | "DENIED";
+
+export interface AuthUser {
+  username: string;
+  role: UserRole;
+}
 
 export interface Device {
   id: string;
@@ -52,6 +59,18 @@ export interface ControlLog {
   createdAt: string;
 }
 
+export interface AuditLog {
+  id: string;
+  actorUsername: string;
+  actorRole: UserRole;
+  action: string;
+  targetType: string;
+  targetId: string;
+  result: AuditResult;
+  detail?: string;
+  createdAt: string;
+}
+
 export interface TelemetryMessage {
   deviceId: string;
   lightIntensity: number;
@@ -71,6 +90,7 @@ export interface AppState {
   thresholds: ThresholdConfig[];
   alarms: AlarmLog[];
   controlLogs: ControlLog[];
+  auditLogs: AuditLog[];
 }
 
 export interface AutomationCommand {

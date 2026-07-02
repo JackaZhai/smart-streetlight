@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import type {
   AlarmLog,
   AppState,
+  AuditLog,
+  AuthUser,
   AutomationCommand,
   CommandName,
   CommandSource,
@@ -13,6 +15,16 @@ import type {
 } from "./types.js";
 
 const HISTORY_LIMIT = 240;
+const AUDIT_LIMIT = 500;
+
+export interface AuditLogInput {
+  actor: AuthUser;
+  action: string;
+  targetType: string;
+  targetId?: string;
+  result: AuditLog["result"];
+  detail?: string;
+}
 
 export function createSeedState(nowIso = new Date().toISOString()): AppState {
   const devices: Device[] = [
@@ -58,7 +70,8 @@ export function createSeedState(nowIso = new Date().toISOString()): AppState {
         createdAt: nowIso
       }
     ],
-    controlLogs: []
+    controlLogs: [],
+    auditLogs: []
   };
 }
 
@@ -213,6 +226,31 @@ export function handleAlarm(state: AppState, alarmId: string): AppState {
   return next;
 }
 
+export function appendAuditLog(
+  state: AppState,
+  input: AuditLogInput,
+  nowIso = new Date().toISOString()
+): AppState {
+  const next = cloneState(state);
+  const targetId = input.targetId?.trim() || "-";
+  const log: AuditLog = {
+    id: makeId(
+      "audit",
+      `${input.actor.username}-${input.action}-${input.targetType}-${targetId}-${input.result}-${nowIso}-${next.auditLogs.length}`
+    ),
+    actorUsername: input.actor.username,
+    actorRole: input.actor.role,
+    action: input.action,
+    targetType: input.targetType,
+    targetId,
+    result: input.result,
+    ...(input.detail ? { detail: input.detail } : {}),
+    createdAt: nowIso
+  };
+  next.auditLogs = [log, ...(next.auditLogs ?? [])].slice(0, AUDIT_LIMIT);
+  return next;
+}
+
 export function buildOverview(state: AppState): Overview {
   const latestReadings = state.devices
     .map((device) => getLatestReading(state, device.id))
@@ -249,7 +287,8 @@ export function cloneState(state: AppState): AppState {
     readings: state.readings.map((item) => ({ ...item })),
     thresholds: state.thresholds.map((item) => ({ ...item })),
     alarms: state.alarms.map((item) => ({ ...item })),
-    controlLogs: state.controlLogs.map((item) => ({ ...item }))
+    controlLogs: state.controlLogs.map((item) => ({ ...item })),
+    auditLogs: (state.auditLogs ?? []).map((item) => ({ ...item }))
   };
 }
 

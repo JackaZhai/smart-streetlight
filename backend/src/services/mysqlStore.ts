@@ -5,6 +5,8 @@ import type {
   AlarmLog,
   AlarmType,
   AppState,
+  AuditLog,
+  AuditResult,
   CommandName,
   CommandSource,
   ControlLog,
@@ -17,7 +19,15 @@ import type {
 import type { StateStore, StateUpdater } from "./store.js";
 
 const HISTORY_LIMIT = 240;
-const TABLES = ["control_logs", "alarm_logs", "light_readings", "threshold_configs", "devices"] as const;
+const AUDIT_LIMIT = 500;
+const TABLES = [
+  "audit_logs",
+  "control_logs",
+  "alarm_logs",
+  "light_readings",
+  "threshold_configs",
+  "devices"
+] as const;
 
 type DbClient = Pool | PoolConnection;
 
@@ -70,6 +80,18 @@ interface ControlRow extends RowDataPacket {
   command: CommandName;
   source: CommandSource;
   result: ControlLog["result"];
+  created_at: string | Date;
+}
+
+interface AuditRow extends RowDataPacket {
+  id: string;
+  actor_username: string;
+  actor_role: AuditLog["actorRole"];
+  action: string;
+  target_type: string;
+  target_id: string;
+  result: AuditResult;
+  detail: string | null;
   created_at: string | Date;
 }
 
@@ -221,6 +243,23 @@ export class MysqlStateStore implements StateStore {
           ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ${this.table("audit_logs")} (
+        id VARCHAR(96) PRIMARY KEY,
+        actor_username VARCHAR(255) NOT NULL,
+        actor_role VARCHAR(32) NOT NULL,
+        action VARCHAR(96) NOT NULL,
+        target_type VARCHAR(64) NOT NULL,
+        target_id VARCHAR(128) NOT NULL,
+        result VARCHAR(32) NOT NULL,
+        detail TEXT NULL,
+        created_at DATETIME(3) NOT NULL,
+        INDEX idx_audit_actor_time (actor_username, created_at),
+        INDEX idx_audit_action_time (action, created_at),
+        INDEX idx_audit_result_time (result, created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
   }
 
   private async seedIfEmpty(): Promise<void> {
@@ -260,13 +299,17 @@ export class MysqlStateStore implements StateStore {
     const [controlRows] = await client.query<ControlRow[]>(
       `SELECT * FROM ${this.table("control_logs")} ORDER BY created_at DESC, id DESC`
     );
+    const [auditRows] = await client.query<AuditRow[]>(
+      `SELECT * FROM ${this.table("audit_logs")} ORDER BY created_at DESC, id DESC LIMIT 500`
+    );
 
     return {
       devices: deviceRows.map(mapDevice),
       readings: readingRows.map(mapReading),
       thresholds: thresholdRows.map(mapThreshold),
       alarms: alarmRows.map(mapAlarm),
-      controlLogs: controlRows.map(mapControl)
+      controlLogs: controlRows.map(mapControl),
+      auditLogs: auditRows.map(mapAudit)
     };
   }
 
@@ -367,6 +410,27 @@ export class MysqlStateStore implements StateStore {
         ]
       );
     }
+
+    for (const auditLog of normalized.auditLogs ?? []) {
+      await client.execute(
+        `
+          INSERT INTO ${this.table("audit_logs")}
+            (id, actor_username, actor_role, action, target_type, target_id, result, detail, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          auditLog.id,
+          auditLog.actorUsername,
+          auditLog.actorRole,
+          auditLog.action,
+          auditLog.targetType,
+          auditLog.targetId,
+          auditLog.result,
+          auditLog.detail ?? null,
+          toMysqlDateTime(auditLog.createdAt)
+        ]
+      );
+    }
   }
 
   private table(name: (typeof TABLES)[number]): string {
@@ -383,6 +447,9 @@ function normalizeState(state: AppState): AppState {
   next.readings = next.readings
     .sort((a, b) => a.reportedAt.localeCompare(b.reportedAt))
     .slice(-HISTORY_LIMIT);
+  next.auditLogs = (next.auditLogs ?? [])
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, AUDIT_LIMIT);
   return next;
 }
 
@@ -439,6 +506,20 @@ function mapControl(row: ControlRow): ControlLog {
     command: row.command,
     source: row.source,
     result: row.result,
+    createdAt: fromMysqlDateTime(row.created_at)
+  };
+}
+
+function mapAudit(row: AuditRow): AuditLog {
+  return {
+    id: row.id,
+    actorUsername: row.actor_username,
+    actorRole: row.actor_role,
+    action: row.action,
+    targetType: row.target_type,
+    targetId: row.target_id,
+    result: row.result,
+    ...(row.detail ? { detail: row.detail } : {}),
     createdAt: fromMysqlDateTime(row.created_at)
   };
 }
