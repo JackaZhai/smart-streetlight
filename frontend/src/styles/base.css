@@ -965,6 +965,26 @@ tbody tr:hover {
   padding: 0;
 }
 
+.filter-select {
+  position: relative;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.filter-select select {
+  min-width: 104px;
+  appearance: none;
+  padding-right: 28px;
+}
+
+.filter-select svg {
+  position: absolute;
+  right: 9px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
 .spacer {
   flex: 1 1 auto;
 }
@@ -1318,6 +1338,49 @@ tbody tr:hover {
   align-items: center;
   gap: 8px;
   padding: 0 10px;
+  font-size: 12px;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  padding: 24px;
+  background: rgba(17, 31, 38, 0.28);
+  display: grid;
+  place-items: center;
+}
+
+.modal-panel {
+  width: min(420px, 100%);
+  padding: 16px;
+}
+
+.create-device-form {
+  margin-top: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.create-device-form label {
+  display: grid;
+  gap: 7px;
+  color: #53626c;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.create-device-form input {
+  width: 100%;
+  height: 36px;
+}
+
+.form-error {
+  margin: 0;
+  padding: 9px 10px;
+  border-radius: 6px;
+  background: #fff0ef;
+  color: var(--red);
   font-size: 12px;
 }
 

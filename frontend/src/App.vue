@@ -24,6 +24,7 @@ import StreetlightVisual from "./components/StreetlightVisual.vue";
 import TrendChart from "./components/TrendChart.vue";
 import {
   connectRealtime,
+  createDevice,
   fetchAuditLogs,
   fetchLightHistory,
   fetchOverview,
@@ -49,9 +50,20 @@ const auditLogs = ref<AuditLog[]>([]);
 const selectedDeviceId = ref("SL-001");
 const activeSection = ref<DashboardSection>("overview");
 const deviceView = ref<DeviceView>("list");
+const deviceSearch = ref("");
+const deviceStatusFilter = ref<"ALL" | "ONLINE" | "OFFLINE">("ALL");
+const showCreateDevice = ref(false);
+const createDevicePending = ref(false);
+const createDeviceError = ref("");
 const loading = ref(true);
 const errorMessage = ref("");
 const session = ref<AuthSession | null>(getStoredSession());
+
+const createDeviceForm = reactive({
+  id: "",
+  name: "",
+  location: ""
+});
 
 const ruleForm = reactive({
   lowThreshold: 150,
@@ -74,6 +86,7 @@ const selectedAlarm = computed<AlarmLog | undefined>(() => {
 });
 const canOperate = computed(() => session.value?.user.role === "admin" || session.value?.user.role === "operator");
 const canViewAudit = computed(() => session.value?.user.role === "admin");
+const canCreateDevice = computed(() => session.value?.user.role === "admin");
 const displayTime = "2025-05-24 10:32:18";
 
 const pageTitle = computed(() => {
@@ -97,6 +110,19 @@ const alarmStats = computed(() => {
     resolved: alarms.filter((alarm) => alarm.handled).length,
     critical: alarms.filter((alarm) => alarm.alarmLevel === "CRITICAL" && !alarm.handled).length
   };
+});
+
+const filteredDevices = computed(() => {
+  const keyword = deviceSearch.value.trim().toLowerCase();
+  return (overview.value?.devices ?? []).filter((device) => {
+    const matchesStatus = deviceStatusFilter.value === "ALL" || device.onlineStatus === deviceStatusFilter.value;
+    const matchesKeyword =
+      keyword.length === 0 ||
+      device.id.toLowerCase().includes(keyword) ||
+      device.name.toLowerCase().includes(keyword) ||
+      device.location.toLowerCase().includes(keyword);
+    return matchesStatus && matchesKeyword;
+  });
 });
 
 const controlRecordRows = computed(() => {
@@ -132,6 +158,16 @@ watch(
   },
   { immediate: true }
 );
+
+watch(showCreateDevice, (visible) => {
+  if (!visible) {
+    return;
+  }
+  createDeviceForm.id = nextDeviceId();
+  createDeviceForm.name = "";
+  createDeviceForm.location = "";
+  createDeviceError.value = "";
+});
 
 async function loadOverview() {
   if (!session.value) {
@@ -209,6 +245,40 @@ function openDeviceDetail(deviceId: string) {
   deviceView.value = "detail";
 }
 
+function closeCreateDevice() {
+  if (createDevicePending.value) {
+    return;
+  }
+  showCreateDevice.value = false;
+  createDeviceError.value = "";
+}
+
+async function submitCreateDevice() {
+  if (!canCreateDevice.value) {
+    createDeviceError.value = "当前账号无权新增设备";
+    return;
+  }
+  createDevicePending.value = true;
+  createDeviceError.value = "";
+  try {
+    overview.value = await createDevice({
+      id: createDeviceForm.id.trim(),
+      name: createDeviceForm.name.trim(),
+      location: createDeviceForm.location.trim()
+    });
+    selectedDeviceId.value = createDeviceForm.id.trim();
+    deviceSearch.value = "";
+    deviceStatusFilter.value = "ALL";
+    showCreateDevice.value = false;
+    await loadHistory();
+    await loadAuditLogs();
+  } catch (error) {
+    createDeviceError.value = error instanceof Error ? error.message : "新增设备失败";
+  } finally {
+    createDevicePending.value = false;
+  }
+}
+
 async function persistRule() {
   if (!selectedThreshold.value) {
     return;
@@ -251,6 +321,14 @@ function alarmLevelText(level: AlarmLog["alarmLevel"]) {
     WARN: "中",
     CRITICAL: "高"
   }[level];
+}
+
+function nextDeviceId() {
+  const numericIds = (overview.value?.devices ?? [])
+    .map((device) => Number(device.id.replace(/^SL-/i, "")))
+    .filter((value) => Number.isFinite(value));
+  const next = Math.max(0, ...numericIds) + 1;
+  return `SL-${String(next).padStart(3, "0")}`;
 }
 
 onMounted(async () => {
@@ -346,9 +424,18 @@ onMounted(async () => {
 
         <section v-if="activeSection === 'devices' && deviceView === 'list'" class="page-content list-page">
           <div class="toolbar-row">
-            <div class="search-box"><Search :size="15" /><input placeholder="搜索设备ID / 位置" /></div>
-            <button class="filter-button" type="button">全部状态 <ChevronDown :size="13" /></button>
-            <button class="primary-action slim" type="button"><Plus :size="15" /> 添加设备</button>
+            <div class="search-box"><Search :size="15" /><input v-model="deviceSearch" placeholder="搜索设备ID / 位置" /></div>
+            <label class="filter-select">
+              <select v-model="deviceStatusFilter">
+                <option value="ALL">全部状态</option>
+                <option value="ONLINE">在线</option>
+                <option value="OFFLINE">离线</option>
+              </select>
+              <ChevronDown :size="13" />
+            </label>
+            <button class="primary-action slim" type="button" :disabled="!canCreateDevice" @click="showCreateDevice = true">
+              <Plus :size="15" /> 添加设备
+            </button>
             <div class="spacer"></div>
             <KpiCard label="全部设备" :value="String(overview.stats.deviceTotal)" note="总量" tone="slate" icon="device" mini />
             <KpiCard label="在线设备" :value="String(overview.stats.onlineDevices)" note="在线" tone="green" icon="device" mini />
@@ -356,7 +443,7 @@ onMounted(async () => {
             <KpiCard label="开灯设备" :value="String(overview.devices.filter((item) => item.lampStatus === 'ON').length)" note="开启" tone="leaf" icon="sun" mini />
           </div>
           <DeviceTable
-            :devices="overview.devices"
+            :devices="filteredDevices"
             :latest-readings="overview.latestReadings"
             :selected-device-id="selectedDeviceId"
             @select-device="selectedDeviceId = $event"
@@ -623,5 +710,35 @@ onMounted(async () => {
         </section>
       </template>
     </main>
+
+    <div v-if="showCreateDevice" class="modal-backdrop" role="presentation" @click.self="closeCreateDevice">
+      <section class="panel modal-panel" role="dialog" aria-modal="true" aria-labelledby="create-device-title">
+        <div class="panel-title-row">
+          <h2 id="create-device-title">添加设备</h2>
+          <button class="text-button" type="button" :disabled="createDevicePending" @click="closeCreateDevice">关闭</button>
+        </div>
+        <form class="create-device-form" @submit.prevent="submitCreateDevice">
+          <label>
+            设备ID
+            <input v-model.trim="createDeviceForm.id" required maxlength="32" placeholder="SL-005" />
+          </label>
+          <label>
+            设备名称
+            <input v-model.trim="createDeviceForm.name" required maxlength="80" placeholder="5 号路灯" />
+          </label>
+          <label>
+            设备位置
+            <input v-model.trim="createDeviceForm.location" required maxlength="120" placeholder="校园主干道西侧" />
+          </label>
+          <p v-if="createDeviceError" class="form-error">{{ createDeviceError }}</p>
+          <div class="button-row">
+            <button class="secondary-action" type="button" :disabled="createDevicePending" @click="closeCreateDevice">取消</button>
+            <button class="primary-action" type="submit" :disabled="createDevicePending || !canCreateDevice">
+              {{ createDevicePending ? "提交中" : "确认添加" }}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
   </div>
 </template>

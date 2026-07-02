@@ -56,6 +56,12 @@ export interface Overview {
   thresholds: ThresholdConfig[];
 }
 
+export interface CreateDevicePayload {
+  id: string;
+  name: string;
+  location: string;
+}
+
 export interface AgentAnswer {
   answer: string;
   references: string[];
@@ -139,6 +145,13 @@ export async function fetchLightHistory(deviceId: string): Promise<LightReading[
 
 export async function fetchAuditLogs(): Promise<AuditLog[]> {
   return request("/api/audit-logs");
+}
+
+export async function createDevice(payload: CreateDevicePayload): Promise<Overview> {
+  return request("/api/devices", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
 }
 
 export async function sendCommand(deviceId: string, command: CommandName): Promise<void> {
