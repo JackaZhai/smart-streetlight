@@ -134,7 +134,7 @@ function composeExecCommand(options, shellCommand) {
 }
 
 function backupShellCommand() {
-  return 'mysqldump --single-transaction --routines --triggers --events --default-character-set=utf8mb4 -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"';
+  return 'mysqldump --single-transaction --routines --triggers --events --no-tablespaces --default-character-set=utf8mb4 -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"';
 }
 
 function restoreShellCommand() {
