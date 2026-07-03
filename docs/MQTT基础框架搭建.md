@@ -137,13 +137,14 @@ docker compose -f deploy/docker-compose.yml config
 | --- | --- |
 | 当前分支 | `main` |
 | 跟踪远端 | `origin/main` |
-| 基准提交 | `c930856 feat: record alarm handling metadata` |
+| 当前提交 | `b8ae065 feat: complete streetlight control workflow` |
 | MQTT 相关代码状态 | MQTT 桥接、EMQX、模拟设备和主题文档已存在于当前主线 |
-| 本次变更状态 | 本文档为 MQTT 基础框架搭建记录，当前处于未提交工作区改动 |
-| 建议提交信息 | `docs: record mqtt framework setup` |
+| 提交状态 | 本文档和 MQTT 基础框架记录已纳入本地提交 |
+| 拉取状态 | 已执行 `git pull --rebase origin main`，远端无新增提交 |
+| 远端同步状态 | 本地 `main` 领先 `origin/main` 1 个提交，尚未 push |
 
 分支情况说明：
 
-- 当前开发主线为 `main`，本地 `main` 与 `origin/main` 在基准提交 `c930856` 上保持一致。
+- 当前开发主线为 `main`，本地最新提交为 `b8ae065 feat: complete streetlight control workflow`。
 - 之前功能分支已经合并到主线，MQTT 基础链路属于项目初稿和后续主线迭代中的核心基础能力。
-- 本次没有新建 MQTT 专项分支，当前是在已有主线基础上补充 MQTT 搭建说明和验收记录。
+- 本次没有新建 MQTT 专项分支，当前是在已有主线基础上补充 MQTT 搭建说明和验收记录，并已随阶段性提交一起记录。

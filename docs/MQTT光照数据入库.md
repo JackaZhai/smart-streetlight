@@ -119,13 +119,14 @@ TEST_DATABASE_URL=mysql://streetlight:streetlight_pass@127.0.0.1:3307/smart_stre
 | --- | --- |
 | 当前分支 | `main` |
 | 跟踪远端 | `origin/main` |
-| 基准提交 | `c930856 feat: record alarm handling metadata` |
+| 当前提交 | `b8ae065 feat: complete streetlight control workflow` |
 | 相关代码状态 | MQTT 接收、领域入库、MySQL 表结构、API 查询和前端展示已存在于当前主线 |
-| 本次变更状态 | 已补充光照数据持久化测试和说明文档，当前为未提交工作区改动 |
-| 建议提交信息 | `test: cover mqtt light reading persistence` |
+| 提交状态 | 光照数据持久化测试和说明文档已纳入本地提交 |
+| 拉取状态 | 已执行 `git pull --rebase origin main`，远端无新增提交 |
+| 远端同步状态 | 本地 `main` 领先 `origin/main` 1 个提交，尚未 push |
 
 分支情况说明：
 
-- 当前开发主线为 `main`，本地 `main` 与 `origin/main` 在基准提交 `c930856` 上保持一致。
+- 当前开发主线为 `main`，本地最新提交为 `b8ae065 feat: complete streetlight control workflow`。
 - 本次没有新建 MQTT 光照入库专项分支，是在当前主线基础上补充测试和过程记录。
-- 当前工作区还包含工程搭建、登录页、MQTT 基础框架和 MQTT 光照数据入库相关未提交改动。
+- 工程搭建、登录页、MQTT 基础框架和 MQTT 光照数据入库相关改动已随阶段性提交一起记录。
