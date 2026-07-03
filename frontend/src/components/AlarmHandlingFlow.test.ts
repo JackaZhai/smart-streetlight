@@ -7,6 +7,8 @@ describe("alarm handling page flow", () => {
     expect(apiSource).toContain("handleAlarm");
     expect(appSource).toContain("alarmLevelFilter");
     expect(appSource).toContain("alarmStatusFilter");
+    expect(appSource).toContain("alarmStartDate");
+    expect(appSource).toContain("alarmEndDate");
     expect(appSource).toContain("filteredAlarms");
     expect(appSource).toContain("selectedAlarmId");
     expect(appSource).toContain("alarmHandleRemark");
@@ -18,6 +20,7 @@ describe("alarm handling page flow", () => {
     expect(appSource).toContain("handleRemark");
     expect(appSource).toContain("warning: alarms.filter");
     expect(appSource).toContain("<span>中优先级</span><strong>{{ alarmStats.warning }}</strong>");
+    expect(appSource).toContain("type=\"date\"");
     expect(appSource).toContain("@click=\"selectAlarm(alarm.id)\"");
     expect(appSource).toContain("@click=\"handleSelectedAlarm\"");
     expect(appSource).toContain(

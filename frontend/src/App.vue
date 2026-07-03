@@ -37,6 +37,8 @@ import {
   type AuditLog,
   type AuthSession,
   type Device,
+  type FaultPrediction,
+  type FaultRiskLevel,
   type LightReading,
   type Overview,
   type ThresholdConfig
@@ -58,6 +60,8 @@ const deviceStatusFilter = ref<"ALL" | "ONLINE" | "OFFLINE">("ALL");
 const alarmLevelFilter = ref<AlarmLevelFilter>("ALL");
 const alarmStatusFilter = ref<AlarmStatusFilter>("ALL");
 const alarmDeviceKeyword = ref("");
+const alarmStartDate = ref("");
+const alarmEndDate = ref("");
 const selectedAlarmId = ref("");
 const alarmHandleRemark = ref("");
 const alarmHandlePending = ref(false);
@@ -98,6 +102,7 @@ const selectedAlarm = computed<AlarmLog | undefined>(() => {
   }
   return alarms.find((alarm) => !alarm.handled) ?? alarms[0];
 });
+const selectedFaultPredictions = computed(() => faultPredictionsFor(selectedDeviceId.value));
 const canOperate = computed(() => session.value?.user.role === "admin" || session.value?.user.role === "operator");
 const canViewAudit = computed(() => session.value?.user.role === "admin");
 const canCreateDevice = computed(() => session.value?.user.role === "admin");
@@ -151,7 +156,10 @@ const filteredAlarms = computed(() => {
       keyword.length === 0 ||
       alarm.deviceId.toLowerCase().includes(keyword) ||
       deviceLocationFor(alarm.deviceId).toLowerCase().includes(keyword);
-    return matchesLevel && matchesStatus && matchesDevice;
+    const createdAt = alarm.createdAt.slice(0, 10);
+    const matchesStart = !alarmStartDate.value || createdAt >= alarmStartDate.value;
+    const matchesEnd = !alarmEndDate.value || createdAt <= alarmEndDate.value;
+    return matchesLevel && matchesStatus && matchesDevice && matchesStart && matchesEnd;
   });
 });
 
@@ -394,6 +402,34 @@ function alarmLevelText(level: AlarmLog["alarmLevel"]) {
   }[level];
 }
 
+function faultPredictionsFor(deviceId: string): FaultPrediction[] {
+  return (overview.value?.faultPredictions ?? []).filter((risk) => risk.deviceId === deviceId);
+}
+
+function highestRiskFor(deviceId: string): FaultPrediction | undefined {
+  return faultPredictionsFor(deviceId)[0];
+}
+
+function riskLevelText(level?: FaultRiskLevel) {
+  if (!level) {
+    return "正常";
+  }
+  return {
+    LOW: "低风险",
+    MEDIUM: "中风险",
+    HIGH: "高风险"
+  }[level];
+}
+
+function riskTypeText(type: FaultPrediction["riskType"]) {
+  return {
+    HEARTBEAT_TIMEOUT: "心跳超时",
+    LIGHT_SENSOR_ANOMALY: "光照异常",
+    CONTROL_FAILURE: "控制失败",
+    ALARM_BACKLOG: "告警积压"
+  }[type];
+}
+
 function nextDeviceId() {
   const numericIds = (overview.value?.devices ?? [])
     .map((device) => Number(device.id.replace(/^SL-/i, "")))
@@ -483,6 +519,7 @@ onMounted(async () => {
               class="compact-table"
               :devices="overview.devices"
               :latest-readings="overview.latestReadings"
+              :fault-predictions="overview.faultPredictions"
               :selected-device-id="selectedDeviceId"
               compact
               @select-device="selectedDeviceId = $event"
@@ -512,10 +549,12 @@ onMounted(async () => {
             <KpiCard label="在线设备" :value="String(overview.stats.onlineDevices)" note="在线" tone="green" icon="device" mini />
             <KpiCard label="离线设备" :value="String(overview.stats.offlineDevices)" note="离线" tone="amber" icon="alarm" mini />
             <KpiCard label="开灯设备" :value="String(overview.devices.filter((item) => item.lampStatus === 'ON').length)" note="开启" tone="leaf" icon="sun" mini />
+            <KpiCard label="故障预判" :value="String(overview.faultPredictions.length)" note="风险项" tone="amber" icon="alarm" mini />
           </div>
           <DeviceTable
             :devices="filteredDevices"
             :latest-readings="overview.latestReadings"
+            :fault-predictions="overview.faultPredictions"
             :selected-device-id="selectedDeviceId"
             @select-device="selectedDeviceId = $event"
             @open-detail="openDeviceDetail"
@@ -566,6 +605,23 @@ onMounted(async () => {
                 <dt>最后心跳</dt>
                 <dd>{{ formatDateTime(selectedDevice.lastHeartbeatAt) }}</dd>
               </dl>
+            </article>
+            <article class="panel fault-card">
+              <div class="panel-title-row">
+                <h2>故障预判</h2>
+                <span class="risk-pill" :class="highestRiskFor(selectedDeviceId)?.riskLevel.toLowerCase()">
+                  {{ riskLevelText(highestRiskFor(selectedDeviceId)?.riskLevel) }}
+                </span>
+              </div>
+              <div v-if="selectedFaultPredictions.length" class="risk-list">
+                <article v-for="risk in selectedFaultPredictions" :key="risk.id">
+                  <strong>{{ riskTypeText(risk.riskType) }}</strong>
+                  <span>{{ riskLevelText(risk.riskLevel) }}</span>
+                  <p>{{ risk.reason }}</p>
+                  <em>{{ risk.suggestedAction }}</em>
+                </article>
+              </div>
+              <p v-else class="audit-empty">当前设备暂无故障风险。</p>
             </article>
           </section>
           <section class="detail-bottom-grid">
@@ -629,7 +685,8 @@ onMounted(async () => {
               </select>
             </label>
             <label>设备ID <input v-model="alarmDeviceKeyword" placeholder="请输入设备ID" /></label>
-            <label><CalendarDays :size="14" /> 2025-05-17 至 2025-05-24</label>
+            <label><CalendarDays :size="14" /> 开始日期 <input v-model="alarmStartDate" type="date" /></label>
+            <label><CalendarDays :size="14" /> 结束日期 <input v-model="alarmEndDate" type="date" /></label>
             <button class="primary-action slim" type="button" @click="alarmDeviceKeyword = alarmDeviceKeyword.trim()">搜索</button>
           </div>
           <section class="alarm-layout">
@@ -822,6 +879,17 @@ onMounted(async () => {
                 <dd>{{ energyFor(selectedDevice) }} kWh</dd>
               </dl>
               <button class="secondary-action slim" type="button" @click="openDeviceDetail(selectedDevice.id)">查看设备详情</button>
+            </article>
+            <article class="panel guide-card">
+              <h2>故障预判</h2>
+              <button
+                v-for="risk in selectedFaultPredictions"
+                :key="risk.id"
+                type="button"
+              >
+                <Bell :size="14" /> {{ riskTypeText(risk.riskType) }} · {{ riskLevelText(risk.riskLevel) }}
+              </button>
+              <p v-if="selectedFaultPredictions.length === 0" class="audit-empty">暂无风险提示</p>
             </article>
             <article class="panel guide-card">
               <h2>推荐操作</h2>

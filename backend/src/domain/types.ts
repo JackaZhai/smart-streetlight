@@ -6,6 +6,8 @@ export type AlarmType = "DEVICE_OFFLINE" | "CONTROL_TIMEOUT" | "SENSOR_ANOMALY";
 export type AlarmLevel = "INFO" | "WARN" | "CRITICAL";
 export type UserRole = "admin" | "operator" | "viewer";
 export type AuditResult = "SUCCESS" | "DENIED";
+export type FaultRiskType = "HEARTBEAT_TIMEOUT" | "LIGHT_SENSOR_ANOMALY" | "CONTROL_FAILURE" | "ALARM_BACKLOG";
+export type FaultRiskLevel = "LOW" | "MEDIUM" | "HIGH";
 
 export interface AuthUser {
   username: string;
@@ -74,6 +76,17 @@ export interface AuditLog {
   createdAt: string;
 }
 
+export interface FaultPrediction {
+  id: string;
+  deviceId: string;
+  riskType: FaultRiskType;
+  riskLevel: FaultRiskLevel;
+  reason: string;
+  suggestedAction: string;
+  evidence: string[];
+  createdAt: string;
+}
+
 export interface TelemetryMessage {
   deviceId: string;
   lightIntensity: number;
@@ -124,4 +137,5 @@ export interface Overview {
   latestReadings: LightReading[];
   alarms: AlarmLog[];
   thresholds: ThresholdConfig[];
+  faultPredictions: FaultPrediction[];
 }

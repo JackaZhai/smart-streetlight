@@ -3,10 +3,12 @@ import {
   applyManualCommand,
   applyCommandReply,
   applyTelemetry,
+  buildFaultPredictions,
   buildOverview,
   createSeedState,
   handleAlarm,
   markOfflineDevices,
+  markControlCommandFailed,
   updateThreshold
 } from "../src/domain/streetlight.js";
 
@@ -190,5 +192,56 @@ describe("streetlight domain", () => {
 
     const readingIds = second.readings.map((reading) => reading.id);
     expect(new Set(readingIds).size).toBe(readingIds.length);
+  });
+
+  it("predicts heartbeat timeout, light sensor, control failure, and alarm backlog risks", () => {
+    const state = createSeedState("2026-07-03T08:00:00.000Z");
+    const offline = markOfflineDevices(state, "2026-07-03T08:03:00.000Z", 90_000);
+    const queued = applyManualCommand(offline, "SL-001", "TURN_ON", "manual", "2026-07-03T08:04:00.000Z");
+    const withControlFailure = markControlCommandFailed(queued, queued.controlLogs[0].id);
+    const withFlatReadings = {
+      ...withControlFailure,
+      readings: [
+        ...withControlFailure.readings,
+        ...Array.from({ length: 4 }, (_, index) => ({
+          id: `flat-${index}`,
+          deviceId: "SL-002",
+          lightIntensity: 999,
+          lampStatus: "OFF" as const,
+          reportedAt: `2026-07-03T08:0${index}:00.000Z`
+        }))
+      ]
+    };
+
+    const predictions = buildFaultPredictions(withFlatReadings, "2026-07-03T08:05:00.000Z");
+
+    expect(predictions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          deviceId: "SL-001",
+          riskType: "HEARTBEAT_TIMEOUT",
+          riskLevel: "HIGH"
+        }),
+        expect.objectContaining({
+          deviceId: "SL-001",
+          riskType: "CONTROL_FAILURE",
+          riskLevel: "MEDIUM"
+        }),
+        expect.objectContaining({
+          deviceId: "SL-002",
+          riskType: "LIGHT_SENSOR_ANOMALY",
+          riskLevel: "HIGH"
+        }),
+        expect.objectContaining({
+          deviceId: "SL-002",
+          riskType: "ALARM_BACKLOG",
+          riskLevel: "MEDIUM"
+        })
+      ])
+    );
+    expect(predictions[0]).toMatchObject({
+      evidence: expect.any(Array),
+      suggestedAction: expect.any(String)
+    });
   });
 });

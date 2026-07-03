@@ -1,16 +1,18 @@
 <script setup lang="ts">
 import { CircleDot, RefreshCw, Search } from "lucide-vue-next";
-import type { Device, LightReading } from "../services/api";
+import type { Device, FaultPrediction, FaultRiskLevel, LightReading } from "../services/api";
 
 const props = withDefaults(
   defineProps<{
     devices: Device[];
     selectedDeviceId: string;
     latestReadings?: LightReading[];
+    faultPredictions?: FaultPrediction[];
     compact?: boolean;
   }>(),
   {
     latestReadings: () => [],
+    faultPredictions: () => [],
     compact: false
   }
 );
@@ -33,6 +35,21 @@ function currentPower(device: Device) {
 
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString("zh-CN", { hour12: false }).replace(/\//g, "-");
+}
+
+function highestRiskFor(deviceId: string) {
+  return props.faultPredictions.find((risk) => risk.deviceId === deviceId);
+}
+
+function riskLevelText(level?: FaultRiskLevel) {
+  if (!level) {
+    return "正常";
+  }
+  return {
+    LOW: "低风险",
+    MEDIUM: "中风险",
+    HIGH: "高风险"
+  }[level];
 }
 </script>
 
@@ -59,6 +76,7 @@ function formatDateTime(value: string) {
             <th>今日能耗</th>
             <th>位置</th>
             <th>最后心跳</th>
+            <th>故障预判</th>
             <th>操作</th>
           </tr>
         </thead>
@@ -85,6 +103,11 @@ function formatDateTime(value: string) {
             <td>{{ device.lampStatus === "ON" ? (currentPower(device) / 100).toFixed(2) : "0.00" }} kWh</td>
             <td>{{ device.location }}</td>
             <td>{{ formatDateTime(latestReadingFor(device.id)?.reportedAt ?? device.lastHeartbeatAt) }}</td>
+            <td>
+              <span class="risk-pill" :class="highestRiskFor(device.id)?.riskLevel.toLowerCase()">
+                {{ riskLevelText(highestRiskFor(device.id)?.riskLevel) }}
+              </span>
+            </td>
             <td>
               <button class="text-button" type="button" @click.stop="emit('open-detail', device.id)">详情</button>
               <button class="text-button" type="button" @click.stop="emit('select-device', device.id)">控制</button>

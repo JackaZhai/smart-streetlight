@@ -15,6 +15,8 @@ withDefaults(
 const question = ref("当前设备离线如何排查？");
 const answer = ref("当前系统中有 2 台离线，今日总能耗 1.20 kWh。相比昨日用电量下降 18.8%，节能状态良好。");
 const references = ref<string[]>([]);
+const matches = ref<Array<{ title: string; source: string; snippet: string; score: number }>>([]);
+const suggestedActions = ref<string[]>([]);
 const pending = ref(false);
 
 async function submit() {
@@ -26,6 +28,8 @@ async function submit() {
     const result = await askAgent(question.value);
     answer.value = result.answer;
     references.value = result.references;
+    matches.value = result.matches ?? [];
+    suggestedActions.value = result.suggestedActions ?? [];
   } finally {
     pending.value = false;
   }
@@ -53,6 +57,17 @@ async function submit() {
       </div>
       <div v-if="references.length" class="references">
         <span v-for="item in references" :key="item">{{ item }}</span>
+      </div>
+      <div v-if="matches.length" class="knowledge-matches">
+        <strong>知识命中</strong>
+        <article v-for="match in matches" :key="match.title">
+          <span>{{ match.title }} · {{ match.score }}</span>
+          <p>{{ match.snippet }}</p>
+        </article>
+      </div>
+      <div v-if="suggestedActions.length" class="suggested-actions">
+        <strong>推荐操作</strong>
+        <button v-for="item in suggestedActions" :key="item" type="button">{{ item }}</button>
       </div>
     </div>
     <form class="chat-form" @submit.prevent="submit">

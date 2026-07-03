@@ -586,6 +586,36 @@ select {
   background: #edf9f3;
 }
 
+.risk-pill {
+  width: fit-content;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #516069;
+  background: #edf3f1;
+  font-size: 11px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.risk-pill.low {
+  color: var(--green);
+  background: #edf9f3;
+}
+
+.risk-pill.medium {
+  color: #b36400;
+  background: #fff6ea;
+}
+
+.risk-pill.high {
+  color: var(--red);
+  background: #fff0ef;
+}
+
 .status-badge.online {
   color: var(--green);
   background: #edf9f3;
@@ -1156,6 +1186,46 @@ tbody tr:hover {
   grid-template-columns: 72px minmax(0, 1fr);
 }
 
+.fault-card {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
+.risk-list {
+  display: grid;
+  gap: 8px;
+}
+
+.risk-list article {
+  display: grid;
+  gap: 4px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fbfdfc;
+}
+
+.risk-list article strong {
+  color: #25343e;
+  font-size: 13px;
+}
+
+.risk-list article span {
+  color: var(--teal-deep);
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.risk-list article p,
+.risk-list article em {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.5;
+}
+
 .handle-remark-field {
   margin-top: 12px;
   display: grid;
@@ -1325,6 +1395,50 @@ tbody tr:hover {
 
 .agent-chat-main {
   min-height: 620px;
+}
+
+.knowledge-matches,
+.suggested-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.knowledge-matches > strong,
+.suggested-actions > strong {
+  color: #22313a;
+  font-size: 12px;
+}
+
+.knowledge-matches article {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fbfdfc;
+}
+
+.knowledge-matches article span {
+  color: var(--teal-deep);
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.knowledge-matches article p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.suggested-actions button {
+  min-height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  color: #41515b;
+  padding: 0 10px;
+  text-align: left;
+  font-size: 12px;
 }
 
 .agent-side {

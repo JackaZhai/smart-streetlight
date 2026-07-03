@@ -3,6 +3,7 @@ import type { Server } from "socket.io";
 import {
   applyManualCommand,
   appendAuditLog,
+  buildFaultPredictions,
   buildOverview,
   handleAlarm,
   updateThreshold
@@ -39,6 +40,11 @@ export function createApiRouter(options: ApiOptions): Router {
   router.get("/devices", async (_req, res) => {
     const state = await options.store.getState();
     res.json(state.devices);
+  });
+
+  router.get("/fault-predictions", async (_req, res) => {
+    const state = await options.store.getState();
+    res.json(buildFaultPredictions(state));
   });
 
   router.get(
@@ -144,6 +150,12 @@ export function createApiRouter(options: ApiOptions): Router {
     const deviceId = parseDeviceIdParam(req.params.id);
     const state = await options.store.getState();
     res.json(state.readings.filter((item) => item.deviceId === deviceId).slice(-80));
+  });
+
+  router.get("/devices/:id/fault-predictions", async (req, res) => {
+    const deviceId = parseDeviceIdParam(req.params.id);
+    const state = await options.store.getState();
+    res.json(buildFaultPredictions(state).filter((item) => item.deviceId === deviceId));
   });
 
   router.get("/devices/:id/threshold", async (req, res) => {

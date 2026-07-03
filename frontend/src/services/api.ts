@@ -4,6 +4,8 @@ export type LampStatus = "ON" | "OFF";
 export type OnlineStatus = "ONLINE" | "OFFLINE";
 export type CommandName = "TURN_ON" | "TURN_OFF";
 export type UserRole = "admin" | "operator" | "viewer";
+export type FaultRiskLevel = "LOW" | "MEDIUM" | "HIGH";
+export type FaultRiskType = "HEARTBEAT_TIMEOUT" | "LIGHT_SENSOR_ANOMALY" | "CONTROL_FAILURE" | "ALARM_BACKLOG";
 
 export interface Device {
   id: string;
@@ -45,6 +47,17 @@ export interface AlarmLog {
   createdAt: string;
 }
 
+export interface FaultPrediction {
+  id: string;
+  deviceId: string;
+  riskType: FaultRiskType;
+  riskLevel: FaultRiskLevel;
+  reason: string;
+  suggestedAction: string;
+  evidence: string[];
+  createdAt: string;
+}
+
 export interface Overview {
   stats: {
     deviceTotal: number;
@@ -57,6 +70,7 @@ export interface Overview {
   latestReadings: LightReading[];
   alarms: AlarmLog[];
   thresholds: ThresholdConfig[];
+  faultPredictions: FaultPrediction[];
 }
 
 export interface CreateDevicePayload {
@@ -68,6 +82,17 @@ export interface CreateDevicePayload {
 export interface AgentAnswer {
   answer: string;
   references: string[];
+  matches?: KnowledgeMatch[];
+  suggestedActions?: string[];
+}
+
+export interface KnowledgeMatch {
+  id: string;
+  title: string;
+  source: string;
+  snippet: string;
+  score: number;
+  keywords: string[];
 }
 
 export interface AuthUser {
@@ -148,6 +173,14 @@ export async function fetchLightHistory(deviceId: string): Promise<LightReading[
 
 export async function fetchAuditLogs(): Promise<AuditLog[]> {
   return request("/api/audit-logs");
+}
+
+export async function fetchFaultPredictions(): Promise<FaultPrediction[]> {
+  return request("/api/fault-predictions");
+}
+
+export async function fetchDeviceFaultPredictions(deviceId: string): Promise<FaultPrediction[]> {
+  return request(`/api/devices/${deviceId}/fault-predictions`);
 }
 
 export async function createDevice(payload: CreateDevicePayload): Promise<Overview> {
