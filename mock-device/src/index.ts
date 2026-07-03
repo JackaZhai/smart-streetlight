@@ -34,7 +34,11 @@ client.on("message", (topic, payload) => {
     return;
   }
 
-  const message = JSON.parse(payload.toString()) as { command?: "TURN_ON" | "TURN_OFF"; source?: string };
+  const message = JSON.parse(payload.toString()) as {
+    commandId?: string;
+    command?: "TURN_ON" | "TURN_OFF";
+    source?: string;
+  };
   if (message.command === "TURN_ON") {
     device.lampStatus = "ON";
   }
@@ -46,6 +50,7 @@ client.on("message", (topic, payload) => {
     `streetlight/${device.id}/command/reply`,
     JSON.stringify({
       deviceId: device.id,
+      commandId: message.commandId,
       command: message.command,
       result: "SUCCESS",
       timestamp: new Date().toISOString()

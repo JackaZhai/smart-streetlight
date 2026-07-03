@@ -22,9 +22,12 @@
 
 ```json
 {
+  "commandId": "control-xxxx",
   "deviceId": "SL-001",
   "command": "TURN_ON",
   "source": "manual",
+  "attempt": 1,
+  "maxAttempts": 3,
   "timestamp": "2026-07-01T08:00:03.000Z"
 }
 ```
@@ -33,6 +36,7 @@
 
 ```json
 {
+  "commandId": "control-xxxx",
   "deviceId": "SL-001",
   "command": "TURN_ON",
   "result": "SUCCESS",

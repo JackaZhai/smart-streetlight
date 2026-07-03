@@ -5,6 +5,7 @@ import type {
   AuditLog,
   AuthUser,
   AutomationCommand,
+  CommandReplyMessage,
   CommandName,
   CommandSource,
   Device,
@@ -122,8 +123,9 @@ export function evaluateAutomation(
 
   device.lampStatus = command === "TURN_ON" ? "ON" : "OFF";
   device.updatedAt = nowIso;
+  const commandId = makeId("control", `${deviceId}-${command}-${nowIso}`);
   next.controlLogs.unshift({
-    id: makeId("control", `${deviceId}-${command}-${nowIso}`),
+    id: commandId,
     deviceId,
     command,
     source: "auto",
@@ -135,6 +137,7 @@ export function evaluateAutomation(
     state: next,
     commands: [
       {
+        commandId,
         deviceId,
         command,
         source: "auto",
@@ -155,14 +158,33 @@ export function applyManualCommand(
   const device = ensureDevice(next, deviceId, nowIso);
   device.lampStatus = command === "TURN_ON" ? "ON" : "OFF";
   device.updatedAt = nowIso;
+  const commandId = makeId("control", `${deviceId}-${command}-${source}-${nowIso}`);
   next.controlLogs.unshift({
-    id: makeId("control", `${deviceId}-${command}-${source}-${nowIso}`),
+    id: commandId,
     deviceId,
     command,
     source,
     result: "QUEUED",
     createdAt: nowIso
   });
+  return next;
+}
+
+export function applyCommandReply(state: AppState, reply: CommandReplyMessage): AppState {
+  const next = cloneState(state);
+  const controlLog = findControlLogForReply(next, reply);
+  if (controlLog) {
+    controlLog.result = reply.result;
+  }
+  return next;
+}
+
+export function markControlCommandFailed(state: AppState, commandId: string): AppState {
+  const next = cloneState(state);
+  const controlLog = next.controlLogs.find((item) => item.id === commandId);
+  if (controlLog && controlLog.result === "QUEUED") {
+    controlLog.result = "FAILED";
+  }
   return next;
 }
 
@@ -365,6 +387,18 @@ function getAutomationCommand(
     return "TURN_OFF";
   }
   return null;
+}
+
+function findControlLogForReply(state: AppState, reply: CommandReplyMessage) {
+  if (reply.commandId) {
+    const exact = state.controlLogs.find((item) => item.id === reply.commandId);
+    if (exact) {
+      return exact;
+    }
+  }
+  return state.controlLogs.find(
+    (item) => item.deviceId === reply.deviceId && item.command === reply.command && item.result === "QUEUED"
+  );
 }
 
 function makeId(prefix: string, seed: string): string {

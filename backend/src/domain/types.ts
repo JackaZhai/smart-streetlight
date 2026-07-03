@@ -87,6 +87,14 @@ export interface CommandRequest {
   source?: CommandSource;
 }
 
+export interface CommandReplyMessage {
+  commandId?: string;
+  deviceId: string;
+  command: CommandName;
+  result: "SUCCESS" | "FAILED";
+  timestamp: string;
+}
+
 export interface AppState {
   devices: Device[];
   readings: LightReading[];
@@ -97,6 +105,7 @@ export interface AppState {
 }
 
 export interface AutomationCommand {
+  commandId: string;
   deviceId: string;
   command: CommandName;
   source: "auto";

@@ -207,7 +207,10 @@ export function createApiRouter(options: ApiOptions): Router {
           }
         )
       );
-      options.mqttBridge.publishCommand(deviceId, command, "manual");
+      const commandId = state.controlLogs[0]?.id;
+      if (commandId) {
+        options.mqttBridge.publishCommand(commandId, deviceId, command, "manual");
+      }
       await emit(options, state);
       res.status(202).json({
         message: "控制指令已下发",
