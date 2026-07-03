@@ -275,7 +275,7 @@ export function createApiRouter(options: ApiOptions): Router {
   router.post("/agent/chat", async (req, res) => {
     const { question } = parseAgentQuestionPayload(req.body);
     const state = await options.store.getState();
-    res.json(answerQuestion(question, state));
+    res.json(await answerQuestion(question, state));
   });
 
   router.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {

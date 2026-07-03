@@ -36,7 +36,7 @@ describe("local RAG knowledge base", () => {
     });
   });
 
-  it("enriches agent answers with knowledge matches and suggested actions", () => {
+  it("enriches agent answers with knowledge matches and suggested actions", async () => {
     const seed = createSeedState("2026-07-03T08:00:00.000Z");
     const state = applyTelemetry(seed, {
       deviceId: "SL-002",
@@ -46,9 +46,10 @@ describe("local RAG knowledge base", () => {
       timestamp: "2026-07-03T08:01:00.000Z"
     }).state;
 
-    const answer = answerQuestion("SL-002 光照传感器异常怎么处理？", state);
+    const answer = await answerQuestion("SL-002 光照传感器异常怎么处理？", state);
 
     expect(answer.answer).toContain("SL-002");
+    expect(answer.provider).toBe("local");
     expect(answer.references).toContain("光照异常排查");
     expect(answer.matches?.[0]).toMatchObject({
       title: "光照异常排查",

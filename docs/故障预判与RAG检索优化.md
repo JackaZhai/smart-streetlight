@@ -10,7 +10,7 @@
 - 设备台账新增故障预判风险列。
 - 设备详情新增故障预判卡片，展示风险类型、等级、原因和建议动作。
 - 智能问答侧边栏展示当前设备风险摘要。
-- RAG 检索按设备 ID、同义词、设备上下文和故障相关性排序。
+- RAG 检索按设备 ID、同义词、设备上下文和故障相关性排序，并将排序结果注入 DeepSeek 提示词。
 
 ## 2. 故障预判规则
 
@@ -43,6 +43,7 @@
 - 同义词归一化覆盖离线、控灯、光照、告警、回执、重试等常见表达。
 - `fault` 分类知识在问题带设备上下文时获得额外权重。
 - 返回 topK 命中片段，前端展示知识来源和片段内容。
+- 检索结果、设备上下文、未处理告警和故障预判会共同进入 DeepSeek 用户提示词；DeepSeek 不可用时继续使用本地 RAG 兜底答案。
 
 ## 4. 与问答接口联动
 
@@ -52,7 +53,10 @@
 parseAgentQuestionPayload()
   -> searchKnowledgeBase(question, state)
   -> buildFaultPredictions(state)
-  -> 组合 answer / references / matches / suggestedActions
+  -> 组合知识片段、设备上下文、告警和风险
+  -> 调用 DeepSeek Chat Completions
+  -> 返回 answer / provider / model / references / matches / suggestedActions
+  -> DeepSeek 未配置或失败时回退本地 RAG 答案
 ```
 
 当问题包含设备 ID 时，回答会优先说明该设备上下文和命中的故障预判结果。
@@ -75,4 +79,5 @@ parseAgentQuestionPayload()
 | 基准提交 | `9b4e75b docs: update workflow git status` |
 | 功能提交 | `feat: add rag fault prediction workflows` |
 | 文档提交 | `docs: add rag fault prediction reports` |
+| DeepSeek 调整提交 | `feat: use deepseek for rag answers` |
 | 远端同步 | 完成提交后推送到 `origin/main` |

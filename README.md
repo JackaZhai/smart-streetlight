@@ -11,6 +11,7 @@ Mock 设备 -> MQTT -> 后端 API/告警/控制 -> Socket.IO -> 前端大屏/管
 - 前端：Vue 3 + Vite + TypeScript + ECharts
 - 后端：Node.js + Express + TypeScript + Socket.IO
 - MQTT：EMQX + mqtt.js
+- 智能问答：本地 RAG 知识库 + DeepSeek Chat Completions，本地兜底
 - 模拟设备：Node.js + mqtt.js
 - 测试：Vitest
 - 数据：MySQL 8 产品化持久化，JSON 文件作为本地开发兜底
@@ -112,7 +113,7 @@ npm run dev:mock
 6. 在设备控制面板手动开灯/关灯，并更新阈值。
 7. 停止 mock-device 后，后端会根据心跳超时生成离线告警和故障风险。
 8. 在告警中心按级别、状态、设备和日期筛选告警，并填写处理备注完成闭环。
-9. 在智能问答区输入维护问题，获取本地 RAG 知识库回答、引用片段和推荐操作。
+9. 在智能问答区输入维护问题，获取 DeepSeek 生成的 RAG 回答、引用片段、模型来源和推荐操作；未配置 DeepSeek 时自动使用本地检索兜底。
 
 ## 验证命令
 
@@ -171,8 +172,21 @@ AUTH_USERS_JSON=[{"username":"operator","password":"operator123","role":"operato
 
 关键写操作和被拒绝的越权操作会写入审计日志，管理员可在前端审计面板或 `/api/audit-logs` 查看最近记录。
 
+## DeepSeek 问答配置
+
+智能问答默认使用本地知识库检索设备上下文、告警和故障预判，再调用 DeepSeek 生成回答。未配置 `DEEPSEEK_API_KEY` 或请求失败时，后端会自动回退到本地 RAG 答案。
+
+```env
+DEEPSEEK_API_KEY=sk-...
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-v4-flash
+DEEPSEEK_TIMEOUT_MS=8000
+```
+
+DeepSeek API 使用 OpenAI 兼容格式，模型和地址以官方文档为准：https://api-docs.deepseek.com/
+
 ## 后续扩展
 
-- 将本地 RAG 检索替换为 MaxKB、向量数据库或大模型智能体。
+- 将关键词 RAG 检索升级为 MaxKB、向量数据库或企业知识库服务。
 - 基地阶段接入鸿蒙开发板真实光照传感器和控制外设。
 - 增加告警通知、备份恢复和 CI/CD 发布流水线。

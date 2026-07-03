@@ -84,6 +84,8 @@ export interface AgentAnswer {
   references: string[];
   matches?: KnowledgeMatch[];
   suggestedActions?: string[];
+  provider?: "deepseek" | "local";
+  model?: string;
 }
 
 export interface KnowledgeMatch {

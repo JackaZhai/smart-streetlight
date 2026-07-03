@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Bot, SendHorizontal, UserRound } from "lucide-vue-next";
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { askAgent } from "../services/api";
 
 withDefaults(
@@ -17,7 +17,10 @@ const answer = ref("当前系统中有 2 台离线，今日总能耗 1.20 kWh。
 const references = ref<string[]>([]);
 const matches = ref<Array<{ title: string; source: string; snippet: string; score: number }>>([]);
 const suggestedActions = ref<string[]>([]);
+const provider = ref<"deepseek" | "local">("local");
+const model = ref("");
 const pending = ref(false);
+const providerText = computed(() => (provider.value === "deepseek" ? `DeepSeek ${model.value}`.trim() : "本地检索兜底"));
 
 async function submit() {
   if (!question.value.trim()) {
@@ -30,6 +33,8 @@ async function submit() {
     references.value = result.references;
     matches.value = result.matches ?? [];
     suggestedActions.value = result.suggestedActions ?? [];
+    provider.value = result.provider ?? "local";
+    model.value = result.model ?? "";
   } finally {
     pending.value = false;
   }
@@ -43,6 +48,7 @@ async function submit() {
         <h2>智能问答</h2>
         <p>维护知识库与运行状态联动</p>
       </div>
+      <span class="model-provider">{{ providerText }}</span>
       <Bot :size="20" />
     </div>
     <div class="chat-thread">

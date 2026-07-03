@@ -244,6 +244,24 @@ select {
   font-size: 11px;
 }
 
+.model-provider {
+  min-height: 24px;
+  max-width: 150px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #cfe7e4;
+  border-radius: 999px;
+  padding: 0 8px;
+  color: var(--teal-deep);
+  background: #eef8f7;
+  font-size: 11px;
+  font-weight: 850;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .panel-title-row {
   min-height: 34px;
   display: flex;
