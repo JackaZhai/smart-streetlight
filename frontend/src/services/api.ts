@@ -79,12 +79,31 @@ export interface CreateDevicePayload {
   location: string;
 }
 
+export interface RegionCommandPayload {
+  region: string;
+  command: CommandName;
+}
+
+export interface RegionCommandResponse {
+  message: string;
+  region: string;
+  command: CommandName;
+  matchedDevices: string[];
+  commands: Array<{
+    commandId: string;
+    deviceId: string;
+    command: CommandName;
+    source: "manual" | "auto";
+    reason?: string;
+  }>;
+}
+
 export interface AgentAnswer {
   answer: string;
   references: string[];
   matches?: KnowledgeMatch[];
   suggestedActions?: string[];
-  provider?: "deepseek" | "local";
+  provider?: "maxkb" | "local";
   model?: string;
 }
 
@@ -196,6 +215,13 @@ export async function sendCommand(deviceId: string, command: CommandName): Promi
   await request(`/api/devices/${deviceId}/commands`, {
     method: "POST",
     body: JSON.stringify({ command })
+  });
+}
+
+export async function sendRegionCommand(payload: RegionCommandPayload): Promise<RegionCommandResponse> {
+  return request("/api/regions/commands", {
+    method: "POST",
+    body: JSON.stringify(payload)
   });
 }
 
