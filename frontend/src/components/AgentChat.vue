@@ -17,10 +17,10 @@ const answer = ref("当前系统中有 2 台离线，今日总能耗 1.20 kWh。
 const references = ref<string[]>([]);
 const matches = ref<Array<{ title: string; source: string; snippet: string; score: number }>>([]);
 const suggestedActions = ref<string[]>([]);
-const provider = ref<"deepseek" | "local">("local");
+const provider = ref<"maxkb" | "local">("local");
 const model = ref("");
 const pending = ref(false);
-const providerText = computed(() => (provider.value === "deepseek" ? `DeepSeek ${model.value}`.trim() : "本地检索兜底"));
+const providerText = computed(() => (provider.value === "maxkb" ? `MaxKB ${model.value}`.trim() : "本地检索兜底"));
 
 async function submit() {
   if (!question.value.trim()) {
@@ -38,6 +38,11 @@ async function submit() {
   } finally {
     pending.value = false;
   }
+}
+
+async function askSuggestedAction(action: string) {
+  question.value = action;
+  await submit();
 }
 </script>
 
@@ -73,7 +78,9 @@ async function submit() {
       </div>
       <div v-if="suggestedActions.length" class="suggested-actions">
         <strong>推荐操作</strong>
-        <button v-for="item in suggestedActions" :key="item" type="button">{{ item }}</button>
+        <button v-for="item in suggestedActions" :key="item" type="button" :disabled="pending" @click="askSuggestedAction(item)">
+          {{ item }}
+        </button>
       </div>
     </div>
     <form class="chat-form" @submit.prevent="submit">

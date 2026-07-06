@@ -5,6 +5,9 @@ describe("SidebarNav", () => {
   test("emits navigation events from sidebar nav buttons", () => {
     expect(sidebarSource).toContain("navigate:");
     expect(sidebarSource).toContain("@click=\"emit('navigate', item.key)\"");
+    expect(sidebarSource).toContain("区域管控");
+    expect(sidebarSource).toContain("光照监测");
+    expect(sidebarSource).toContain("历史趋势");
     expect(sidebarSource).toContain("阈值规则");
   });
 });

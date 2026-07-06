@@ -22,6 +22,7 @@ const emit = defineEmits<{
 
 const chartEl = ref<HTMLDivElement | null>(null);
 const activeRange = ref("24小时");
+const downloadMessage = ref("");
 let chart: echarts.ECharts | null = null;
 let frameHandle = 0;
 
@@ -99,6 +100,29 @@ function scheduleRender() {
   });
 }
 
+function downloadChartImage() {
+  if (!chart) {
+    renderChart();
+  }
+  const dataUrl = chart?.getDataURL({
+    type: "png",
+    pixelRatio: 2,
+    backgroundColor: "#ffffff"
+  });
+  if (!dataUrl) {
+    downloadMessage.value = "图表尚未渲染";
+    return;
+  }
+  const link = document.createElement("a");
+  link.href = dataUrl;
+  link.download = `${props.deviceId}-light-trend.png`;
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  downloadMessage.value = "趋势图已生成";
+}
+
 watch(
   () => [props.history, props.deviceId, props.compact],
   async () => {
@@ -143,7 +167,8 @@ onBeforeUnmount(() => {
           <option v-for="device in devices" :key="device.id" :value="device.id">{{ device.id }}</option>
         </select>
         <span class="unit-label">单位：lux</span>
-        <button class="icon-button" type="button" title="下载趋势图"><Download :size="14" /></button>
+        <button class="icon-button" type="button" title="下载趋势图" @click="downloadChartImage"><Download :size="14" /></button>
+        <span v-if="downloadMessage" class="chart-action-feedback">{{ downloadMessage }}</span>
       </div>
     </div>
     <div ref="chartEl" class="chart-canvas"></div>
