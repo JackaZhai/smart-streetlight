@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CircleDot, RefreshCw, Search } from "lucide-vue-next";
+import { CircleDot, Search } from "lucide-vue-next";
 import type { Device, FaultPrediction, FaultRiskLevel, LightReading } from "../services/api";
 
 const props = withDefaults(
@@ -62,7 +62,6 @@ function riskLevelText(level?: FaultRiskLevel) {
       </div>
       <div v-if="compact" class="mini-table-tools">
         <span><Search :size="13" /> 搜索设备ID / 位置</span>
-        <button type="button" title="刷新"><RefreshCw :size="13" /></button>
       </div>
     </div>
     <div class="table-wrap">
@@ -110,7 +109,7 @@ function riskLevelText(level?: FaultRiskLevel) {
             </td>
             <td>
               <button class="text-button" type="button" @click.stop="emit('open-detail', device.id)">详情</button>
-              <button class="text-button" type="button" @click.stop="emit('select-device', device.id)">控制</button>
+              <button class="text-button" type="button" @click.stop="emit('open-detail', device.id)">控制</button>
             </td>
           </tr>
         </tbody>

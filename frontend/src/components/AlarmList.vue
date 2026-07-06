@@ -9,6 +9,7 @@ defineProps<{
 
 const emit = defineEmits<{
   changed: [];
+  "show-more": [];
 }>();
 
 async function markHandled(id: string) {
@@ -28,7 +29,7 @@ function formatTime(value: string) {
         <h2>告警列表</h2>
         <p>未处理优先展示</p>
       </div>
-      <button class="text-button" type="button">更多 &gt;</button>
+      <button class="text-button" type="button" @click="emit('show-more')">更多 &gt;</button>
     </div>
     <div class="alarm-list">
       <article v-for="alarm in alarms.slice(0, 5)" :key="alarm.id" :class="{ handled: alarm.handled }">

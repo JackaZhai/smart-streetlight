@@ -32,10 +32,12 @@ import {
   handleAlarm,
   logout,
   saveThreshold,
+  sendRegionCommand,
   socket,
   type AlarmLog,
   type AuditLog,
   type AuthSession,
+  type CommandName,
   type Device,
   type FaultPrediction,
   type FaultRiskLevel,
@@ -44,7 +46,7 @@ import {
   type ThresholdConfig
 } from "./services/api";
 
-type DashboardSection = "overview" | "devices" | "alarms" | "rules" | "agent";
+type DashboardSection = "overview" | "gis" | "monitor" | "history" | "devices" | "alarms" | "rules" | "agent";
 type DeviceView = "list" | "detail";
 type AlarmLevelFilter = "ALL" | AlarmLog["alarmLevel"];
 type AlarmStatusFilter = "ALL" | "PENDING" | "HANDLED";
@@ -66,6 +68,11 @@ const selectedAlarmId = ref("");
 const alarmHandleRemark = ref("");
 const alarmHandlePending = ref(false);
 const alarmHandleError = ref("");
+const regionCommandPending = ref(false);
+const regionCommandError = ref("");
+const regionCommandMessage = ref("");
+const historyDate = ref(new Date().toISOString().slice(0, 10));
+const thresholdPreviewLight = ref(180);
 const showCreateDevice = ref(false);
 const createDevicePending = ref(false);
 const createDeviceError = ref("");
@@ -83,6 +90,11 @@ const ruleForm = reactive({
   lowThreshold: 150,
   highThreshold: 80,
   enabled: true
+});
+
+const regionCommandForm = reactive({
+  region: "宿舍区",
+  command: "TURN_ON" as CommandName
 });
 
 const selectedDevice = computed<Device | undefined>(() =>
@@ -114,7 +126,10 @@ const pageTitle = computed(() => {
   }
   return {
     overview: "智慧路灯节能系统",
-    devices: "设备管理",
+    gis: "区域管控",
+    monitor: "光照实时监测",
+    history: "历史光照趋势",
+    devices: "设备台账",
     alarms: "告警日志",
     rules: "阈值规则",
     agent: "智能问答"
@@ -142,6 +157,83 @@ const filteredDevices = computed(() => {
       device.location.toLowerCase().includes(keyword);
     return matchesStatus && matchesKeyword;
   });
+});
+
+const regionOptions = computed(() => [...new Set((overview.value?.devices ?? []).map((device) => device.location))]);
+
+const regionMatchedDevices = computed(() => {
+  const keyword = regionCommandForm.region.trim().toLowerCase();
+  const devices = overview.value?.devices ?? [];
+  if (!keyword) {
+    return devices;
+  }
+  return devices.filter(
+    (device) =>
+      device.location.toLowerCase().includes(keyword) ||
+      device.name.toLowerCase().includes(keyword) ||
+      device.id.toLowerCase().includes(keyword)
+  );
+});
+
+const monitorLightPercent = computed(() => {
+  const value = latestReading.value?.lightIntensity ?? 0;
+  return Math.min(100, Math.max(0, Math.round((value / 500) * 100)));
+});
+
+const historyRows = computed(() =>
+  history.value.slice(-12).map((reading) => ({
+    ...reading,
+    time: formatDateTime(reading.reportedAt),
+    power: reading.lampStatus === "ON" ? "62 W" : "0 W"
+  }))
+);
+
+const historySummary = computed(() => {
+  const values = history.value.map((reading) => reading.lightIntensity);
+  if (values.length === 0) {
+    return {
+      average: 0,
+      max: 0,
+      min: 0,
+      samples: 0
+    };
+  }
+  return {
+    average: Math.round(values.reduce((sum, value) => sum + value, 0) / values.length),
+    max: Math.max(...values),
+    min: Math.min(...values),
+    samples: values.length
+  };
+});
+
+const thresholdPreviewStatus = computed(() => {
+  if (thresholdPreviewLight.value <= ruleForm.lowThreshold) {
+    return "开灯中";
+  }
+  if (thresholdPreviewLight.value >= ruleForm.highThreshold) {
+    return "关灯中";
+  }
+  return "保持状态";
+});
+
+const thresholdPreviewClass = computed(() => {
+  if (thresholdPreviewStatus.value === "开灯中") {
+    return "on";
+  }
+  if (thresholdPreviewStatus.value === "关灯中") {
+    return "off";
+  }
+  return "hold";
+});
+
+const thresholdPreviewHint = computed(() => {
+  if (thresholdPreviewStatus.value === "开灯中") {
+    return `当前光照低于 ${ruleForm.lowThreshold} lux，自动触发开灯。`;
+  }
+  if (thresholdPreviewStatus.value === "关灯中") {
+    return `当前光照高于 ${ruleForm.highThreshold} lux，自动触发关灯。`;
+  }
+  return `当前光照位于 ${ruleForm.lowThreshold}-${ruleForm.highThreshold} lux 区间，保持原状态。`;
 });
 
 const filteredAlarms = computed(() => {
@@ -371,6 +463,28 @@ async function persistRule() {
   await loadOverview();
 }
 
+async function dispatchRegionCommand() {
+  if (!canOperate.value || !regionCommandForm.region.trim()) {
+    return;
+  }
+  regionCommandPending.value = true;
+  regionCommandError.value = "";
+  regionCommandMessage.value = "";
+  try {
+    const result = await sendRegionCommand({
+      region: regionCommandForm.region.trim(),
+      command: regionCommandForm.command
+    });
+    regionCommandMessage.value = `${result.message}：${result.matchedDevices.join("、")}`;
+    await loadOverview();
+    await loadAuditLogs();
+  } catch (error) {
+    regionCommandError.value = error instanceof Error ? error.message : "区域批量控灯失败";
+  } finally {
+    regionCommandPending.value = false;
+  }
+}
+
 function deviceLocationFor(deviceId?: string) {
   return overview.value?.devices.find((device) => device.id === deviceId)?.location ?? "--";
 }
@@ -460,7 +574,7 @@ onMounted(async () => {
     <main class="workspace">
       <header class="topbar">
         <div class="topbar-title">
-          <button class="icon-button" type="button" title="展开导航"><Menu :size="18" /></button>
+          <span class="icon-button" title="导航"><Menu :size="18" /></span>
           <h1>{{ pageTitle }}</h1>
         </div>
         <div class="topbar-meta">
@@ -525,8 +639,208 @@ onMounted(async () => {
               @select-device="selectedDeviceId = $event"
               @open-detail="openDeviceDetail"
             />
-            <AlarmList :alarms="overview.alarms" :can-operate="canOperate" @changed="loadOverview" />
+            <AlarmList :alarms="overview.alarms" :can-operate="canOperate" @changed="loadOverview" @show-more="activeSection = 'alarms'" />
             <AgentChat compact />
+          </section>
+        </section>
+
+        <section v-if='activeSection === "gis"' class="page-content gis-page">
+          <section class="panel region-map-panel">
+            <div class="panel-title-row">
+              <div>
+                <h2>GIS 区域管控</h2>
+                <p>按位置关键字圈定设备，统一下发开关灯指令</p>
+              </div>
+              <span class="state-pill done">{{ regionMatchedDevices.length }} 台匹配</span>
+            </div>
+            <div class="region-command-grid gis-command-grid">
+              <label>
+                区域关键字
+                <input
+                  v-model.trim="regionCommandForm.region"
+                  list="region-options"
+                  maxlength="120"
+                  placeholder="宿舍区 / 主干道 / 南门"
+                  :disabled="!canOperate || regionCommandPending"
+                />
+              </label>
+              <label>
+                控灯动作
+                <select v-model="regionCommandForm.command" :disabled="!canOperate || regionCommandPending">
+                  <option value="TURN_ON">开灯</option>
+                  <option value="TURN_OFF">关灯</option>
+                </select>
+              </label>
+              <button
+                class="primary-action slim"
+                type="button"
+                :disabled="!canOperate || regionCommandPending || !regionCommandForm.region.trim()"
+                @click="dispatchRegionCommand"
+              >
+                {{ regionCommandPending ? "下发中" : "区域批量下发" }}
+              </button>
+            </div>
+            <p v-if="regionCommandError" class="form-error">{{ regionCommandError }}</p>
+            <p v-if="regionCommandMessage" class="form-success">{{ regionCommandMessage }}</p>
+            <div class="region-map-summary">
+              <article><span>在线设备</span><strong>{{ regionMatchedDevices.filter((device) => device.onlineStatus === "ONLINE").length }}</strong></article>
+              <article><span>开灯设备</span><strong>{{ regionMatchedDevices.filter((device) => device.lampStatus === "ON").length }}</strong></article>
+              <article><span>离线设备</span><strong>{{ regionMatchedDevices.filter((device) => device.onlineStatus === "OFFLINE").length }}</strong></article>
+            </div>
+            <div class="region-map-grid">
+              <button
+                v-for="device in regionMatchedDevices"
+                :key="device.id"
+                class="region-device-pin"
+                :class="[device.onlineStatus.toLowerCase(), device.lampStatus.toLowerCase(), { selected: device.id === selectedDeviceId }]"
+                type="button"
+                @click="selectedDeviceId = device.id"
+              >
+                <span class="pin-light"></span>
+                <strong>{{ device.id }}</strong>
+                <em>{{ device.location }}</em>
+                <small>{{ device.onlineStatus === "ONLINE" ? "在线" : "离线" }} · {{ device.lampStatus === "ON" ? "开灯" : "关灯" }}</small>
+              </button>
+              <div v-if="regionMatchedDevices.length === 0" class="audit-empty">暂无匹配设备</div>
+            </div>
+          </section>
+          <section class="panel table-panel">
+            <div class="panel-header compact">
+              <div>
+                <h2>区域设备清单</h2>
+                <p>当前区域匹配结果</p>
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>设备ID</th>
+                  <th>位置</th>
+                  <th>在线状态</th>
+                  <th>灯具状态</th>
+                  <th>当前光照</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="device in regionMatchedDevices" :key="device.id">
+                  <td>{{ device.id }}</td>
+                  <td>{{ device.location }}</td>
+                  <td><span class="status-badge" :class="device.onlineStatus === 'ONLINE' ? 'online' : 'offline'">{{ device.onlineStatus === "ONLINE" ? "在线" : "离线" }}</span></td>
+                  <td><span class="state-pill" :class="{ on: device.lampStatus === 'ON' }">{{ device.lampStatus }}</span></td>
+                  <td>{{ overview.latestReadings.find((reading) => reading.deviceId === device.id)?.lightIntensity ?? "--" }} lux</td>
+                  <td><button class="text-button" type="button" @click="openDeviceDetail(device.id)">详情</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+        </section>
+
+        <section v-if='activeSection === "monitor"' class="page-content monitor-page">
+          <section class="monitor-layout">
+            <article class="panel monitor-hero">
+              <div class="panel-title-row">
+                <div>
+                  <h2>光照实时监测</h2>
+                  <p>{{ selectedDeviceId }} · {{ selectedDevice?.location ?? "--" }}</p>
+                </div>
+                <label class="filter-select">
+                  <select v-model="selectedDeviceId">
+                    <option v-for="device in overview.devices" :key="device.id" :value="device.id">{{ device.id }}（{{ device.location }}）</option>
+                  </select>
+                  <ChevronDown :size="13" />
+                </label>
+              </div>
+              <div class="light-gauge">
+                <div class="light-value">{{ latestReading?.lightIntensity ?? "--" }}<span>lux</span></div>
+                <div class="light-progress"><span :style="{ width: `${monitorLightPercent}%` }"></span></div>
+                <div class="light-scale"><span>0</span><span>250</span><span>500</span></div>
+              </div>
+              <div class="monitor-stat-grid">
+                <article><span>灯具状态</span><strong>{{ selectedDevice?.lampStatus ?? "--" }}</strong></article>
+                <article><span>自动控制</span><strong>{{ selectedThreshold?.enabled ? "启用" : "停用" }}</strong></article>
+                <article><span>最后上报</span><strong>{{ formatDateTime(latestReading?.reportedAt) }}</strong></article>
+              </div>
+            </article>
+            <TrendChart
+              class="monitor-chart"
+              :history="history"
+              :device-id="selectedDeviceId"
+              :devices="overview.devices"
+              @select-device="selectedDeviceId = $event"
+            />
+          </section>
+          <section class="panel table-panel">
+            <div class="panel-header compact">
+              <h2>最近光照样本</h2>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>时间</th>
+                  <th>设备ID</th>
+                  <th>光照</th>
+                  <th>灯具状态</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="reading in historyRows" :key="reading.id">
+                  <td>{{ reading.time }}</td>
+                  <td>{{ reading.deviceId }}</td>
+                  <td>{{ reading.lightIntensity }} lux</td>
+                  <td>{{ reading.lampStatus }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+        </section>
+
+        <section v-if='activeSection === "history"' class="page-content history-page">
+          <div class="toolbar-row">
+            <label><CalendarDays :size="14" /> 日期 <input v-model="historyDate" type="date" /></label>
+            <label>
+              设备
+              <select v-model="selectedDeviceId">
+                <option v-for="device in overview.devices" :key="device.id" :value="device.id">{{ device.id }}（{{ device.location }}）</option>
+              </select>
+            </label>
+            <button class="primary-action slim" type="button" @click="loadHistory">刷新趋势</button>
+          </div>
+          <div class="history-kpi-grid">
+            <KpiCard label="平均光照" :value="String(historySummary.average)" unit="lux" note="样本均值" tone="teal" icon="sun" />
+            <KpiCard label="最高光照" :value="String(historySummary.max)" unit="lux" note="峰值" tone="amber" icon="sun" />
+            <KpiCard label="最低光照" :value="String(historySummary.min)" unit="lux" note="谷值" tone="slate" icon="device" />
+            <KpiCard label="样本数量" :value="String(historySummary.samples)" note="历史记录" tone="green" icon="device" />
+          </div>
+          <TrendChart
+            class="history-chart"
+            :history="history"
+            :device-id="selectedDeviceId"
+            :devices="overview.devices"
+            @select-device="selectedDeviceId = $event"
+          />
+          <section class="panel table-panel">
+            <div class="panel-header compact">
+              <h2>历史明细</h2>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>上报时间</th>
+                  <th>光照值</th>
+                  <th>灯具状态</th>
+                  <th>估算功率</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="reading in historyRows" :key="`history-${reading.id}`">
+                  <td>{{ reading.time }}</td>
+                  <td>{{ reading.lightIntensity }} lux</td>
+                  <td>{{ reading.lampStatus }}</td>
+                  <td>{{ reading.power }}</td>
+                </tr>
+              </tbody>
+            </table>
           </section>
         </section>
 
@@ -661,7 +975,12 @@ onMounted(async () => {
                 </table>
               </div>
             </article>
-            <AlarmList :alarms="overview.alarms.filter((alarm) => alarm.deviceId === selectedDeviceId)" :can-operate="canOperate" @changed="loadOverview" />
+            <AlarmList
+              :alarms="overview.alarms.filter((alarm) => alarm.deviceId === selectedDeviceId)"
+              :can-operate="canOperate"
+              @changed="loadOverview"
+              @show-more="activeSection = 'alarms'"
+            />
           </section>
         </section>
 
@@ -797,6 +1116,42 @@ onMounted(async () => {
         </section>
 
         <section v-if="activeSection === 'rules'" class="page-content rules-page">
+          <section class="panel threshold-tuning-panel">
+            <div class="panel-title-row">
+              <div>
+                <h2>光照阈值调试面板</h2>
+                <p>{{ selectedDeviceId }} · {{ selectedDevice?.location ?? "--" }}</p>
+              </div>
+              <span class="state-pill" :class="{ on: thresholdPreviewStatus === '开灯中', done: thresholdPreviewStatus === '关灯中' }">
+                {{ thresholdPreviewStatus }}
+              </span>
+            </div>
+            <div class="threshold-tuning-grid">
+              <div class="threshold-slider-stack">
+                <label>
+                  模拟光照
+                  <input v-model.number="thresholdPreviewLight" type="range" min="0" max="500" step="1" />
+                  <strong>{{ thresholdPreviewLight }} lux</strong>
+                </label>
+                <label>
+                  开灯阈值
+                  <input v-model.number="ruleForm.lowThreshold" type="range" min="0" max="500" step="1" :disabled="!canOperate" />
+                  <strong>{{ ruleForm.lowThreshold }} lux</strong>
+                </label>
+                <label>
+                  关灯阈值
+                  <input v-model.number="ruleForm.highThreshold" type="range" min="0" max="500" step="1" :disabled="!canOperate" />
+                  <strong>{{ ruleForm.highThreshold }} lux</strong>
+                </label>
+              </div>
+              <div class="threshold-preview-stage" :class="thresholdPreviewClass">
+                <div class="preview-lamp">灯</div>
+                <strong>{{ thresholdPreviewStatus }}</strong>
+                <p>{{ thresholdPreviewHint }}</p>
+                <button class="primary-action slim" type="button" :disabled="!canOperate" @click="persistRule">保存并下发</button>
+              </div>
+            </div>
+          </section>
           <section class="panel rules-editor">
             <div class="rule-control-grid">
               <label>设备选择 <select v-model="selectedDeviceId"><option v-for="device in overview.devices" :key="device.id" :value="device.id">{{ device.id }}（{{ device.location }}）</option></select></label>
@@ -813,6 +1168,41 @@ onMounted(async () => {
               <p>当实时光照高于关灯阈值时，系统自动关灯。</p>
               <p>心跳超时将触发设备离线告警。</p>
             </aside>
+          </section>
+          <section class="panel region-command-panel">
+            <div class="panel-title-row">
+              <div>
+                <h2>区域批量控灯</h2>
+                <p>按设备位置关键字匹配，逐台通过 MQTT 下发并等待回执</p>
+              </div>
+              <span class="state-pill done">MQTT</span>
+            </div>
+            <div class="region-command-grid">
+              <label>
+                区域关键字
+                <input v-model.trim="regionCommandForm.region" list="region-options" maxlength="120" placeholder="宿舍区 / 主干道 / 南门" :disabled="!canOperate || regionCommandPending" />
+                <datalist id="region-options">
+                  <option v-for="region in regionOptions" :key="region" :value="region" />
+                </datalist>
+              </label>
+              <label>
+                控灯动作
+                <select v-model="regionCommandForm.command" :disabled="!canOperate || regionCommandPending">
+                  <option value="TURN_ON">开灯</option>
+                  <option value="TURN_OFF">关灯</option>
+                </select>
+              </label>
+              <button
+                class="primary-action slim"
+                type="button"
+                :disabled="!canOperate || regionCommandPending || !regionCommandForm.region.trim()"
+                @click="dispatchRegionCommand"
+              >
+                {{ regionCommandPending ? "下发中" : "批量下发" }}
+              </button>
+            </div>
+            <p v-if="regionCommandError" class="form-error">{{ regionCommandError }}</p>
+            <p v-if="regionCommandMessage" class="form-success">{{ regionCommandMessage }}</p>
           </section>
           <section class="panel threshold-visual">
             <h2>阈值可视化（光照 lux）</h2>
@@ -856,11 +1246,10 @@ onMounted(async () => {
 
         <section v-if="activeSection === 'agent'" class="page-content agent-page">
           <aside class="panel conversation-list">
-            <div class="tabs"><button class="active" type="button">会话列表</button><button type="button">常见问题</button></div>
-            <button class="conversation active" type="button">当前设备离线如何排查？<span>10:31</span></button>
-            <button class="conversation" type="button">SL-003 离线怎么处理？<span>10:29</span></button>
-            <button class="conversation" type="button">光照异常是什么原因？<span>10:10</span></button>
-            <button class="new-chat" type="button">+ 新增会话</button>
+            <div class="tabs"><span class="active">会话列表</span><span>常见问题</span></div>
+            <article class="conversation active">当前设备离线如何排查？<span>10:31</span></article>
+            <article class="conversation">SL-003 离线怎么处理？<span>10:29</span></article>
+            <article class="conversation">光照异常是什么原因？<span>10:10</span></article>
           </aside>
           <AgentChat class="agent-chat-main" />
           <aside class="agent-side">
@@ -882,21 +1271,21 @@ onMounted(async () => {
             </article>
             <article class="panel guide-card">
               <h2>故障预判</h2>
-              <button
+              <article
                 v-for="risk in selectedFaultPredictions"
                 :key="risk.id"
-                type="button"
+                class="guide-action"
               >
                 <Bell :size="14" /> {{ riskTypeText(risk.riskType) }} · {{ riskLevelText(risk.riskLevel) }}
-              </button>
+              </article>
               <p v-if="selectedFaultPredictions.length === 0" class="audit-empty">暂无风险提示</p>
             </article>
             <article class="panel guide-card">
               <h2>推荐操作</h2>
-              <button type="button"><ListFilter :size="14" /> 重启设备</button>
-              <button type="button"><Search :size="14" /> 检查网络连接</button>
-              <button type="button"><SlidersHorizontal :size="14" /> 检查阈值配置</button>
-              <button type="button"><FileText :size="14" /> 联系现场维护</button>
+              <div class="guide-action"><ListFilter :size="14" /> 重启设备需现场运维确认</div>
+              <div class="guide-action"><Search :size="14" /> 检查网络连接</div>
+              <div class="guide-action"><SlidersHorizontal :size="14" /> 检查阈值配置</div>
+              <div class="guide-action"><FileText :size="14" /> 联系现场维护</div>
             </article>
           </aside>
         </section>
